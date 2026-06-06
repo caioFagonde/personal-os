@@ -13,6 +13,17 @@ A production-oriented scaffold for a sovereign, modular, offline-first personal 
 - Optional: Qdrant, Ollama, TileServer GL, n8n, ntfy, SearXNG, Prometheus/Grafana/Loki.
 - Private networking: Tailscale-compatible sidecar profile.
 
+
+## Phase 1-3 status
+
+This archive includes the implemented Phase 1-3 foundation:
+
+- Phase 1: device registration, token issuance, encrypted cloud-token storage, settings, audit log, command approvals.
+- Phase 2: expanded sync engine with vector-clock conflict detection, manual conflict workflow, attachment metadata/content flow, and sync dashboard.
+- Phase 3: real `study`, `zettelkasten`, and `geospatial` module APIs plus Quasar pages.
+
+See `docs/phase-1-3-implementation.md`.
+
 ## First-run
 
 ```bash

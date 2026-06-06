@@ -41,7 +41,10 @@ for i in {1..30}; do
   if docker compose --env-file .env exec -T postgres pg_isready -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" >/dev/null 2>&1; then break; fi
   sleep 2
 done
-docker compose --env-file .env exec -T postgres psql -v ON_ERROR_STOP=1 -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" < infra/postgres/migrations/001_core.sql
+for migration in infra/postgres/migrations/*.sql; do
+  info "Applying ${migration}"
+  docker compose --env-file .env exec -T postgres psql -v ON_ERROR_STOP=1 -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" < "${migration}"
+done
 
 info "Seeding module registry"
 docker compose --env-file .env exec -T api-gateway python -m app.seed_modules || warn "Module seed skipped; API may still discover manifests at runtime"
@@ -50,6 +53,7 @@ info "Health checks"
 curl -fsS "http://localhost:${API_GATEWAY_PORT:-8080}/health" >/dev/null && ok "API gateway healthy" || warn "API gateway not healthy yet"
 curl -fsS "http://localhost:${SYNC_ENGINE_PORT:-8081}/health" >/dev/null && ok "Sync engine healthy" || warn "Sync engine not healthy yet"
 curl -fsS "http://localhost:${COMMAND_BUS_PORT:-8082}/health" >/dev/null && ok "Command bus healthy" || warn "Command bus not healthy yet"
+curl -fsS "http://localhost:${MODULE_SERVICE_PORT:-8083}/health" >/dev/null && ok "Module service healthy" || warn "Module service not healthy yet"
 
 TS_IP=""
 if command -v tailscale >/dev/null 2>&1; then
@@ -64,6 +68,7 @@ Local URLs:
   API gateway:  http://localhost:${API_GATEWAY_PORT:-8080}
   Sync engine:  http://localhost:${SYNC_ENGINE_PORT:-8081}
   Command bus:  http://localhost:${COMMAND_BUS_PORT:-8082}
+  Module API:   http://localhost:${MODULE_SERVICE_PORT:-8083}
   MinIO:        http://localhost:9001
   NATS monitor: http://localhost:8222
 

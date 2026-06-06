@@ -13,7 +13,7 @@ replacements = {
     "<generate-minio-user>": "minioadmin_" + secrets.token_hex(4),
     "<generate-minio-password>": secrets.token_urlsafe(32),
     "<generate-with-openssl-rand-hex-32>": secrets.token_hex(32),
-    "<generate-32-byte-base64-key>": base64.urlsafe_b64encode(secrets.token_bytes(32)).decode().rstrip("="),
+    "<generate-32-byte-base64-key>": base64.urlsafe_b64encode(secrets.token_bytes(32)).decode(),
 }
 for k, v in replacements.items():
     text = text.replace(k, v)

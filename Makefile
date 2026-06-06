@@ -19,7 +19,7 @@ logs:
 	$(COMPOSE) logs -f --tail=200
 
 migrate:
-	$(COMPOSE) exec -T postgres psql -U $${POSTGRES_USER:-personal_os} -d $${POSTGRES_DB:-personal_os} < infra/postgres/migrations/001_core.sql
+	for migration in infra/postgres/migrations/*.sql; do $(COMPOSE) exec -T postgres psql -v ON_ERROR_STOP=1 -U $${POSTGRES_USER:-personal_os} -d $${POSTGRES_DB:-personal_os} < $$migration; done
 
 seed:
 	$(COMPOSE) exec -T api-gateway python -m app.seed_modules
