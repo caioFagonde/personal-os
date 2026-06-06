@@ -6,12 +6,14 @@ cd "$ROOT"
 
 MODE="core"
 AUTO_OPEN=false
+CERTIFY_AFTER_BOOTSTRAP=false
 for arg in "$@"; do
   case "$arg" in
     --full) MODE="full" ;;
     --apps) MODE="apps" ;;
     --open) AUTO_OPEN=true ;;
-    --help|-h) echo "Usage: ./scripts/bootstrap.sh [--full] [--apps] [--open]"; exit 0 ;;
+    --certify) CERTIFY_AFTER_BOOTSTRAP=true ;;
+    --help|-h) echo "Usage: ./scripts/bootstrap.sh [--full] [--apps] [--open] [--certify]"; exit 0 ;;
   esac
 done
 
@@ -116,6 +118,26 @@ Next:
 Open onboarding:
   http://localhost:${WEB_PORT:-9000}/onboarding
 EOF
+
+if [[ "${BOOTSTRAP_AUTOMATION_INTERACTIVE:-true}" == "true" ]]; then
+  info "Running interactive authorization handoff for Tailscale, ADB, and OAuth when configured"
+  ./scripts/onboarding/auto-authorize.sh || warn "Interactive authorization handoff incomplete; continue from /onboarding"
+fi
+
+if [[ "${MOBILE_AUTO_DEPLOY:-false}" == "true" ]]; then
+  if command -v adb >/dev/null 2>&1 && adb devices | awk 'NR>1 && $2=="device" {found=1} END{exit !found}'; then
+    info "Deploying Android app to authorized USB device"
+    make mobile || warn "Mobile deploy failed; use apps/mobile preflight output"
+  else
+    warn "MOBILE_AUTO_DEPLOY requested but no authorized ADB device is available"
+  fi
+fi
+
+
+if [[ "$CERTIFY_AFTER_BOOTSTRAP" == "true" ]]; then
+  info "Running Phase 12 local certification"
+  ./scripts/certify/full-local.sh || warn "Phase 12 certification reported failures; inspect output and /certification"
+fi
 
 if [[ "$AUTO_OPEN" == "true" ]]; then
   if command -v xdg-open >/dev/null 2>&1; then xdg-open "http://localhost:${WEB_PORT:-9000}/onboarding" >/dev/null 2>&1 || true; fi

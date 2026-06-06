@@ -14,11 +14,18 @@
     "test:desktop": "pnpm --dir apps/desktop validate",
     "test:phase6": "make test-phase6",
     "test:phase7": "make test-phase7",
-    "test:design": "pnpm --dir packages/design-system test"
+    "test:design": "pnpm --dir packages/design-system test",
+    "test:e2e": "playwright test",
+    "test:phase12": "make test-phase12",
+    "certify:local": "./scripts/certify/full-local.sh",
+    "certify:android": "./scripts/certify/physical-android.sh",
+    "release:android:signed": "./scripts/release/build-android-signed.sh",
+    "release:desktop:signed": "./scripts/release/build-tauri-signed.sh"
   },
   "devDependencies": {
     "prettier": "^3.3.3",
     "turbo": "^2.1.3",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "@playwright/test": "^1.49.1"
   }
 }

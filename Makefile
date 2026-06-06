@@ -134,3 +134,39 @@ release-android:
 
 test-ci-stabilization:
 	python -m pytest tests/test_ci_stabilization.py -q
+
+.PHONY: test-phase11 restore-drill up-full
+
+up-full:
+	./scripts/bootstrap.sh --full --open
+
+test-phase11:
+	cd services/connector-service && python -m pytest tests -q --cov=app.providers --cov=app.backup --cov=app.oauth --cov-branch --cov-fail-under=96
+	python -m pytest tests/test_phase11_scaffold.py -q
+
+restore-drill:
+	./scripts/restore-drill.sh
+
+.PHONY: test-phase12 certify-local certify-android certify-live-connectors release-android-signed release-tauri-signed verify-release-artifacts
+
+test-phase12:
+	python -m pytest tests/test_phase12_scaffold.py -q
+	python -m pytest tests/live -q -m "not live"
+
+certify-local:
+	./scripts/certify/full-local.sh
+
+certify-android:
+	./scripts/certify/physical-android.sh
+
+certify-live-connectors:
+	./scripts/certify/live-connectors.sh
+
+release-android-signed:
+	./scripts/release/build-android-signed.sh
+
+release-tauri-signed:
+	./scripts/release/build-tauri-signed.sh
+
+verify-release-artifacts:
+	./scripts/release/verify-release-artifacts.sh

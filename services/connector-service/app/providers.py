@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 import base64
+import json
 import re
 from dataclasses import dataclass
+from email.message import EmailMessage
 from typing import Any
+from urllib.parse import quote
 
 import httpx
+
+from .oauth import OAuthConfig, refresh_payload, token_endpoint
 
 E164_RE = re.compile(r"^\+[1-9]\d{7,14}$")
 
@@ -18,6 +23,14 @@ class ProviderStatus:
     status: str
     message: str
     next_action_url: str | None = None
+
+
+@dataclass(frozen=True)
+class ProviderSendResult:
+    provider: str
+    status: str
+    provider_message_id: str | None
+    response: dict[str, Any]
 
 
 def normalize_whatsapp_address(number: str) -> str:
@@ -72,6 +85,95 @@ async def publish_ntfy(*, base_url: str, topic: str, message: str, title: str | 
         return {"status_code": resp.status_code, "text": resp.text}
 
 
+def gmail_raw_message(*, to: str, subject: str, body: str, sender: str = "me") -> str:
+    if not to or not body:
+        raise ValueError("email recipient and body are required")
+    msg = EmailMessage()
+    msg["To"] = to
+    msg["From"] = sender
+    msg["Subject"] = subject or "Personal OS"
+    msg.set_content(body)
+    return base64.urlsafe_b64encode(msg.as_bytes()).decode().rstrip("=")
+
+
+async def refresh_access_token(*, config: OAuthConfig, refresh_token: str) -> dict[str, Any]:
+    if not refresh_token:
+        raise ValueError("refresh token is required")
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(
+            token_endpoint(config.provider, config.tenant),
+            data=refresh_payload(config, refresh_token=refresh_token),
+            headers={"accept": "application/json"},
+        )
+    if resp.status_code >= 400:
+        raise RuntimeError(f"{config.provider} refresh failed: {resp.status_code} {resp.text[:500]}")
+    return resp.json()
+
+
+async def send_gmail(*, access_token: str, to: str, subject: str, body: str) -> dict[str, Any]:
+    raw = gmail_raw_message(to=to, subject=subject, body=body)
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(
+            "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+            headers={"authorization": f"Bearer {access_token}", "content-type": "application/json"},
+            json={"raw": raw},
+        )
+    if resp.status_code >= 400:
+        raise RuntimeError(f"Gmail send failed: {resp.status_code} {resp.text[:500]}")
+    return resp.json()
+
+
+async def send_microsoft_mail(*, access_token: str, to: str, subject: str, body: str) -> dict[str, Any]:
+    payload = {
+        "message": {
+            "subject": subject or "Personal OS",
+            "body": {"contentType": "Text", "content": body},
+            "toRecipients": [{"emailAddress": {"address": to}}],
+        },
+        "saveToSentItems": True,
+    }
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(
+            "https://graph.microsoft.com/v1.0/me/sendMail",
+            headers={"authorization": f"Bearer {access_token}", "content-type": "application/json"},
+            json=payload,
+        )
+    if resp.status_code >= 400:
+        raise RuntimeError(f"Microsoft sendMail failed: {resp.status_code} {resp.text[:500]}")
+    return {"status_code": resp.status_code, "accepted": resp.status_code in {200, 202}}
+
+
+async def upload_google_drive_file(*, access_token: str, filename: str, content: bytes, mime_type: str = "application/gzip") -> dict[str, Any]:
+    metadata = {"name": filename}
+    boundary = "personal_os_boundary"
+    body = (
+        f"--{boundary}\r\n"
+        "Content-Type: application/json; charset=UTF-8\r\n\r\n"
+        f"{json.dumps(metadata)}\r\n"
+        f"--{boundary}\r\n"
+        f"Content-Type: {mime_type}\r\n\r\n"
+    ).encode() + content + f"\r\n--{boundary}--\r\n".encode()
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        resp = await client.post(
+            "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
+            headers={"authorization": f"Bearer {access_token}", "content-type": f"multipart/related; boundary={boundary}"},
+            content=body,
+        )
+    if resp.status_code >= 400:
+        raise RuntimeError(f"Google Drive upload failed: {resp.status_code} {resp.text[:500]}")
+    return resp.json()
+
+
+async def upload_onedrive_file(*, access_token: str, filename: str, content: bytes) -> dict[str, Any]:
+    safe_name = quote(filename, safe="")
+    url = f"https://graph.microsoft.com/v1.0/me/drive/root:/PersonalOSBackups/{safe_name}:/content"
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        resp = await client.put(url, headers={"authorization": f"Bearer {access_token}", "content-type": "application/octet-stream"}, content=content)
+    if resp.status_code >= 400:
+        raise RuntimeError(f"OneDrive upload failed: {resp.status_code} {resp.text[:500]}")
+    return resp.json()
+
+
 def provider_status_from_env(env: dict[str, str], provider: str) -> ProviderStatus:
     provider = provider.lower()
     if provider == "twilio":
@@ -81,8 +183,8 @@ def provider_status_from_env(env: dict[str, str], provider: str) -> ProviderStat
         configured = bool(env.get("NTFY_BASE_URL") and env.get("NTFY_TOPIC"))
         return ProviderStatus("ntfy", configured, configured, "ready" if configured else "needs_configuration", "ntfy configured" if configured else "Set NTFY_BASE_URL and NTFY_TOPIC")
     if provider == "tailscale":
-        configured = bool(env.get("TAILSCALE_AUTHKEY"))
-        return ProviderStatus("tailscale", configured, True, "ready" if configured else "manual_authorization_required", "Tailscale auth key configured" if configured else "Sign in with Tailscale CLI/app or set TAILSCALE_AUTHKEY")
+        configured = bool(env.get("TAILSCALE_AUTHKEY") or env.get("TAILSCALE_AUTHORIZED") == "true")
+        return ProviderStatus("tailscale", configured, True, "ready" if configured else "manual_authorization_required", "Tailscale configured or authorized" if configured else "Sign in with Tailscale CLI/app or set TAILSCALE_AUTHKEY")
     if provider == "google":
         configured = bool(env.get("GOOGLE_CLIENT_ID") and env.get("GOOGLE_CLIENT_SECRET") and env.get("GOOGLE_REDIRECT_URI"))
         return ProviderStatus("google", configured, configured, "ready" if configured else "needs_oauth_client", "Google OAuth client configured" if configured else "Set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI")

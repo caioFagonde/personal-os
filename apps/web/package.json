@@ -13,7 +13,9 @@
     "coverage": "vitest run --coverage",
     "typecheck": "vue-tsc --noEmit",
     "cap:add:android": "npx cap add android",
-    "cap:build:android": "quasar build && npx cap sync android && cd android && ./gradlew assembleDebug"
+    "cap:build:android": "quasar build && npx cap sync android && cd android && ./gradlew assembleDebug",
+    "e2e": "playwright test",
+    "preview:ci": "python3 ../../scripts/ci/spa-server.py --root dist/spa --port 9000"
   },
   "dependencies": {
     "@capacitor/android": "^6.1.2",
@@ -39,7 +41,8 @@
     "@vue/test-utils": "^2.4.6",
     "jsdom": "^25.0.1",
     "vitest": "^2.1.4",
-    "vue-tsc": "^2.1.8"
+    "vue-tsc": "^2.1.8",
+    "@playwright/test": "^1.49.1"
   },
   "version": "0.7.0"
 }

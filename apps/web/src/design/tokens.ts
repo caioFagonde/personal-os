@@ -11,10 +11,15 @@ export const navigationModules = [
   { id: 'automation', label: 'Automation', path: '/automation', icon: 'mdi-transit-connection-variant', group: 'Ops' },
   { id: 'digital-twin', label: 'Twin', path: '/digital-twin', icon: 'mdi-brain', group: 'Core' },
   { id: 'sync', label: 'Sync', path: '/sync', icon: 'mdi-sync-circle', group: 'Ops' },
+  { id: 'offline-queue', label: 'Offline Queue', path: '/offline-queue', icon: 'mdi-cloud-sync-outline', group: 'Ops' },
+  { id: 'conflicts', label: 'Conflicts', path: '/conflicts', icon: 'mdi-source-branch-sync', group: 'Ops' },
   { id: 'connectors', label: 'Connectors', path: '/connectors', icon: 'mdi-connection', group: 'Ops' },
+  { id: 'connector-worker', label: 'Worker', path: '/connector-worker', icon: 'mdi-truck-fast-outline', group: 'Ops' },
   { id: 'onboarding', label: 'Onboarding', path: '/onboarding', icon: 'mdi-rocket-launch-outline', group: 'Ops' },
   { id: 'backup-restore', label: 'Backup', path: '/backup-restore', icon: 'mdi-cloud-upload-outline', group: 'Ops' },
-  { id: 'device-pairing', label: 'Pair Device', path: '/device-pairing', icon: 'mdi-qrcode-scan', group: 'Ops' }
+  { id: 'device-pairing', label: 'Pair Device', path: '/device-pairing', icon: 'mdi-qrcode-scan', group: 'Ops' },
+  { id: 'certification', label: 'Certification', path: '/certification', icon: 'mdi-shield-check-outline', group: 'Ops' },
+  { id: 'release-center', label: 'Release', path: '/release-center', icon: 'mdi-package-variant-closed-check', group: 'Ops' }
 ] as const
 
 export const statusTone = {

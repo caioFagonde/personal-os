@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import secrets
@@ -12,13 +13,14 @@ import asyncpg
 import httpx
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, Response
 from pydantic import BaseModel, Field
 
 from .backup import create_backup_bundle
 from .crypto import encrypt_text
 from .oauth import OAuthConfig, build_authorization_start, token_endpoint, token_exchange_payload
 from .providers import provider_status_from_env, publish_ntfy, send_twilio_whatsapp, twilio_message_payload
+from .worker import ConnectorWorker, WorkerConfig, run_worker_forever
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://personal_os:personal_os@localhost:5432/personal_os")
 ROOT_DIR = Path(os.environ.get("PERSONAL_OS_ROOT", "/workspace"))
@@ -27,10 +29,15 @@ CONNECTOR_PUBLIC_BASE_URL = os.environ.get("CONNECTOR_PUBLIC_BASE_URL", os.envir
 CONNECTOR_INTERNAL_BASE_URL = os.environ.get("CONNECTOR_INTERNAL_BASE_URL", "http://connector-service:8094")
 OUTBOX_DRAIN_LIMIT = int(os.environ.get("OUTBOX_DRAIN_LIMIT", "25"))
 SEND_CONNECTOR_TESTS = os.environ.get("SEND_CONNECTOR_TESTS", "false").lower() in {"1", "true", "yes"}
+CONNECTOR_WORKER_ENABLED = os.environ.get("CONNECTOR_WORKER_ENABLED", "false").lower() in {"1", "true", "yes"}
+CONNECTOR_WORKER_EXECUTE = os.environ.get("CONNECTOR_WORKER_EXECUTE", "false").lower() in {"1", "true", "yes"}
+CONNECTOR_WORKER_INTERVAL_SECONDS = float(os.environ.get("CONNECTOR_WORKER_INTERVAL_SECONDS", "20"))
 
 app = FastAPI(title="Personal OS Connector Service", version="1.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 _pool: asyncpg.Pool | None = None
+_worker_task: asyncio.Task | None = None
+_worker_stop: asyncio.Event | None = None
 
 
 class ConnectorTestRequest(BaseModel):
@@ -56,12 +63,25 @@ async def pool() -> asyncpg.Pool:
 
 @app.on_event("startup")
 async def startup() -> None:
-    global _pool
+    global _pool, _worker_task, _worker_stop
     _pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=10)
+    if CONNECTOR_WORKER_ENABLED:
+        _worker_stop = asyncio.Event()
+        worker = ConnectorWorker(_pool, root_dir=ROOT_DIR, backup_dir=BACKUP_DIR)
+        _worker_task = asyncio.create_task(run_worker_forever(worker, execute=CONNECTOR_WORKER_EXECUTE, interval_seconds=CONNECTOR_WORKER_INTERVAL_SECONDS, stop_event=_worker_stop))
 
 
 @app.on_event("shutdown")
 async def shutdown() -> None:
+    global _worker_task, _worker_stop
+    if _worker_stop:
+        _worker_stop.set()
+    if _worker_task:
+        _worker_task.cancel()
+        try:
+            await _worker_task
+        except asyncio.CancelledError:
+            pass
     if _pool:
         await _pool.close()
 
@@ -233,6 +253,30 @@ async def test_ntfy(payload: ConnectorTestRequest) -> dict[str, Any]:
     return {"status": "sent", "provider": "ntfy", "response": result}
 
 
+@app.get("/api/connectors/worker/status")
+async def worker_status() -> dict[str, Any]:
+    p = await pool()
+    async with p.acquire() as conn:
+        message_counts = await conn.fetch("SELECT status, COUNT(*) count FROM message_outbox GROUP BY status")
+        automation_counts = await conn.fetch("SELECT status, COUNT(*) count FROM automation_outbox GROUP BY status")
+        notification_counts = await conn.fetch("SELECT status, COUNT(*) count FROM notification_deliveries GROUP BY status")
+    return {
+        "enabled": CONNECTOR_WORKER_ENABLED,
+        "execute": CONNECTOR_WORKER_EXECUTE,
+        "interval_seconds": CONNECTOR_WORKER_INTERVAL_SECONDS,
+        "message_outbox": {r["status"]: r["count"] for r in message_counts},
+        "automation_outbox": {r["status"]: r["count"] for r in automation_counts},
+        "notification_deliveries": {r["status"]: r["count"] for r in notification_counts},
+    }
+
+
+@app.post("/api/connectors/worker/tick")
+async def worker_tick(payload: OutboxDrainRequest) -> dict[str, Any]:
+    worker = ConnectorWorker(await pool(), root_dir=ROOT_DIR, backup_dir=BACKUP_DIR)
+    result = await worker.tick(WorkerConfig(execute=payload.execute, limit=min(payload.limit, OUTBOX_DRAIN_LIMIT)))
+    return {"count": result.count, "message_outbox": result.message_outbox, "automation_outbox": result.automation_outbox, "notifications": result.notifications, "execute": payload.execute}
+
+
 @app.get("/api/connectors/tailscale/status")
 async def tailscale_status() -> dict[str, Any]:
     status = provider_status_from_env(dict(os.environ), "tailscale")
@@ -241,44 +285,15 @@ async def tailscale_status() -> dict[str, Any]:
 
 @app.post("/api/connectors/outbox/drain")
 async def drain_outbox(payload: OutboxDrainRequest) -> dict[str, Any]:
-    p = await pool()
-    processed: list[dict[str, Any]] = []
-    async with p.acquire() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT id, channel, connector, recipient, subject, body, attempts
-            FROM message_outbox
-            WHERE status='queued' AND next_attempt_at <= now()
-            ORDER BY created_at ASC
-            LIMIT $1
-            """,
-            min(payload.limit, OUTBOX_DRAIN_LIMIT),
-        )
-        for row in rows:
-            outcome = await process_outbox_row(dict(row), execute=payload.execute)
-            status = "sent" if outcome["status"] in {"sent", "dry_run"} else "failed"
-            await conn.execute(
-                """
-                UPDATE message_outbox
-                SET status=$2, attempts=attempts+1, updated_at=now(), metadata=metadata || $3::jsonb
-                WHERE id=$1
-                """,
-                row["id"],
-                status,
-                json.dumps({"last_connector_result": outcome}),
-            )
-            await conn.execute(
-                """
-                INSERT INTO message_deliveries(outbox_id, provider_message_id, status, response)
-                VALUES($1,$2,$3,$4::jsonb)
-                """,
-                row["id"],
-                outcome.get("provider_message_id"),
-                outcome["status"],
-                json.dumps(outcome),
-            )
-            processed.append({"id": str(row["id"]), **outcome})
-    return {"processed": processed, "count": len(processed), "execute": payload.execute}
+    worker = ConnectorWorker(await pool(), root_dir=ROOT_DIR, backup_dir=BACKUP_DIR)
+    result = await worker.tick(WorkerConfig(execute=payload.execute, limit=min(payload.limit, OUTBOX_DRAIN_LIMIT)))
+    return {
+        "processed": result.message_outbox,
+        "automation_outbox": result.automation_outbox,
+        "notifications": result.notifications,
+        "count": result.count,
+        "execute": payload.execute,
+    }
 
 
 async def process_outbox_row(row: dict[str, Any], *, execute: bool) -> dict[str, Any]:
@@ -318,6 +333,36 @@ async def export_backup(payload: BackupExportRequest) -> dict[str, Any]:
     return manifest.__dict__
 
 
+
+
+class BackupUploadRequest(BaseModel):
+    provider: str = Field(pattern="^(google|microsoft)$")
+    include_runtime: bool = False
+
+
+@app.post("/api/connectors/backup/export-upload")
+async def export_and_upload_backup(payload: BackupUploadRequest) -> dict[str, Any]:
+    include = [".env.example", "modules", "docs", "scripts", "infra/postgres/migrations"]
+    if payload.include_runtime:
+        include += ["data/.gitkeep"]
+    manifest = create_backup_bundle(ROOT_DIR, BACKUP_DIR, include=include)
+    p = await pool()
+    async with p.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO backup_manifests(backup_id, archive_path, sha256, included_paths, created_at)
+            VALUES($1,$2,$3,$4,now())
+            ON CONFLICT(backup_id) DO NOTHING
+            """,
+            manifest.backup_id,
+            manifest.archive_path,
+            manifest.sha256,
+            list(manifest.included_paths),
+        )
+    worker = ConnectorWorker(p, root_dir=ROOT_DIR, backup_dir=BACKUP_DIR)
+    upload = await worker.upload_backup(manifest, provider=payload.provider)
+    return {"manifest": manifest.__dict__, "upload": upload}
+
 @app.get("/api/connectors/backup/manifests")
 async def backup_manifests() -> list[dict[str, Any]]:
     p = await pool()
@@ -342,6 +387,18 @@ async def create_pairing_code() -> dict[str, Any]:
             code,
         )
     return {"pairing_id": str(pairing_id), "pairing_code": code, "expires_in_seconds": 900, "url": f"{CONNECTOR_PUBLIC_BASE_URL.rstrip('/')}/device-pairing?code={code}"}
+
+
+@app.get("/api/connectors/device-pairing/qr")
+async def pairing_qr(url: str) -> Response:
+    import io
+    import qrcode
+    import qrcode.image.svg
+    factory = qrcode.image.svg.SvgPathImage
+    img = qrcode.make(url, image_factory=factory)
+    buf = io.BytesIO()
+    img.save(buf)
+    return Response(content=buf.getvalue(), media_type="image/svg+xml")
 
 
 def oauth_config(provider: str, requested_scopes: list[str] | None = None) -> OAuthConfig:

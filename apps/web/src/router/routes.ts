@@ -16,6 +16,11 @@ import OnboardingPage from '../pages/OnboardingPage.vue'
 import BackupRestorePage from '../pages/BackupRestorePage.vue'
 import DevicePairingPage from '../pages/DevicePairingPage.vue'
 import SyncHealthPage from '../pages/SyncHealthPage.vue'
+import ConnectorWorkerPage from '../pages/ConnectorWorkerPage.vue'
+import ConflictResolutionPage from '../pages/ConflictResolutionPage.vue'
+import OfflineQueuePage from '../pages/OfflineQueuePage.vue'
+import CertificationPage from '../pages/CertificationPage.vue'
+import ReleaseCenterPage from '../pages/ReleaseCenterPage.vue'
 
 export default [
   { path: '/', component: HomePage },
@@ -35,5 +40,10 @@ export default [
   { path: '/onboarding', component: OnboardingPage },
   { path: '/backup-restore', component: BackupRestorePage },
   { path: '/device-pairing', component: DevicePairingPage },
+  { path: '/connector-worker', component: ConnectorWorkerPage },
+  { path: '/conflicts', component: ConflictResolutionPage },
+  { path: '/offline-queue', component: OfflineQueuePage },
+  { path: '/certification', component: CertificationPage },
+  { path: '/release-center', component: ReleaseCenterPage },
   { path: '/modules/:id', component: ModulePage, props: true }
 ]
