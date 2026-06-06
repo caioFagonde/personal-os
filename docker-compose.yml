@@ -1,0 +1,323 @@
+name: ${COMPOSE_PROJECT_NAME:-personal_os}
+
+x-restart: &restart
+  restart: unless-stopped
+
+x-health-interval: &health
+  interval: 10s
+  timeout: 5s
+  retries: 10
+  start_period: 10s
+
+networks:
+  personal_os_net:
+    name: personal_os_net
+    driver: bridge
+
+volumes:
+  postgres_data:
+  nats_data:
+  minio_data:
+  qdrant_data:
+  ollama_data:
+  ntfy_data:
+  grafana_data:
+  prometheus_data:
+  loki_data:
+  tailscale_state:
+
+services:
+  postgres:
+    build:
+      context: ./infra/postgres
+    container_name: personal-os-postgres
+    profiles: ["core", "maps", "full"]
+    <<: *restart
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-personal_os}
+      POSTGRES_USER: ${POSTGRES_USER:-personal_os}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      <<: *health
+    networks: [personal_os_net]
+
+  nats:
+    image: nats:2.10-alpine
+    container_name: personal-os-nats
+    profiles: ["core", "automation", "full"]
+    <<: *restart
+    command: ["--jetstream", "--store_dir", "/data", "--http_port", "8222"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - nats_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8222/healthz"]
+      <<: *health
+    networks: [personal_os_net]
+
+  minio:
+    image: minio/minio:RELEASE.2024-10-13T13-34-11Z
+    container_name: personal-os-minio
+    profiles: ["core", "research", "full"]
+    <<: *restart
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER must be set}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD must be set}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      <<: *health
+    networks: [personal_os_net]
+
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+    container_name: personal-os-api-gateway
+    profiles: ["core", "apps", "full"]
+    <<: *restart
+    env_file: .env
+    environment:
+      MODULES_DIR: /workspace/modules
+      DATABASE_URL: ${DATABASE_URL}
+      NATS_URL: ${NATS_URL:-nats://nats:4222}
+    ports:
+      - "${API_GATEWAY_PORT:-8080}:8080"
+    volumes:
+      - ./modules:/workspace/modules:ro
+      - ./packages/module-manifest:/workspace/packages/module-manifest:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      <<: *health
+    networks: [personal_os_net]
+
+  sync-engine:
+    build:
+      context: ./services/sync-engine
+    container_name: personal-os-sync-engine
+    profiles: ["core", "full"]
+    <<: *restart
+    env_file: .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      NATS_URL: ${NATS_URL:-nats://nats:4222}
+    ports:
+      - "${SYNC_ENGINE_PORT:-8081}:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      <<: *health
+    networks: [personal_os_net]
+
+  command-bus:
+    build:
+      context: ./services/command-bus
+    container_name: personal-os-command-bus
+    profiles: ["core", "automation", "full"]
+    <<: *restart
+    env_file: .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      NATS_URL: ${NATS_URL:-nats://nats:4222}
+    ports:
+      - "${COMMAND_BUS_PORT:-8082}:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      <<: *health
+    networks: [personal_os_net]
+
+  web:
+    build:
+      context: ./apps/web
+    container_name: personal-os-web
+    profiles: ["apps", "full"]
+    <<: *restart
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8080}
+      VITE_SYNC_URL: ${VITE_SYNC_URL:-http://localhost:8081}
+      VITE_COMMAND_BUS_URL: ${VITE_COMMAND_BUS_URL:-http://localhost:8082}
+    ports:
+      - "${WEB_PORT:-9000}:9000"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+      sync-engine:
+        condition: service_healthy
+    networks: [personal_os_net]
+
+  qdrant:
+    image: qdrant/qdrant:v1.12.4
+    container_name: personal-os-qdrant
+    profiles: ["ai", "research", "full"]
+    <<: *restart
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/healthz"]
+      <<: *health
+    networks: [personal_os_net]
+
+  ollama:
+    image: ollama/ollama:0.4.2
+    container_name: personal-os-ollama
+    profiles: ["ai", "full"]
+    <<: *restart
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    networks: [personal_os_net]
+
+  embeddings:
+    build:
+      context: ./services/embeddings
+    container_name: personal-os-embeddings
+    profiles: ["ai", "research", "full"]
+    <<: *restart
+    env_file: .env
+    ports:
+      - "8090:8090"
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    networks: [personal_os_net]
+
+  tileserver:
+    image: maptiler/tileserver-gl:v5.0.0
+    container_name: personal-os-tileserver
+    profiles: ["maps", "full"]
+    <<: *restart
+    ports:
+      - "8088:8080"
+    volumes:
+      - ./data/maps:/data:ro
+    networks: [personal_os_net]
+
+  n8n:
+    image: n8nio/n8n:1.67.1
+    container_name: personal-os-n8n
+    profiles: ["automation", "full"]
+    <<: *restart
+    environment:
+      N8N_HOST: localhost
+      N8N_PORT: 5678
+      N8N_PROTOCOL: http
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: 5432
+      DB_POSTGRESDB_DATABASE: ${POSTGRES_DB:-personal_os}
+      DB_POSTGRESDB_USER: ${POSTGRES_USER:-personal_os}
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+    ports:
+      - "5678:5678"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [personal_os_net]
+
+  ntfy:
+    image: binwiederhier/ntfy:v2.11.0
+    container_name: personal-os-ntfy
+    profiles: ["automation", "notifications", "full"]
+    <<: *restart
+    command: serve
+    ports:
+      - "8089:80"
+    volumes:
+      - ntfy_data:/var/cache/ntfy
+    networks: [personal_os_net]
+
+  searxng:
+    image: searxng/searxng:2024.11.11-333bb36
+    container_name: personal-os-searxng
+    profiles: ["research", "full"]
+    <<: *restart
+    ports:
+      - "8087:8080"
+    volumes:
+      - ./infra/searxng:/etc/searxng:ro
+    networks: [personal_os_net]
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: personal-os-prometheus
+    profiles: ["observability", "full"]
+    <<: *restart
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infra/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks: [personal_os_net]
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: personal-os-grafana
+    profiles: ["observability", "full"]
+    <<: *restart
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks: [personal_os_net]
+
+  loki:
+    image: grafana/loki:3.2.1
+    container_name: personal-os-loki
+    profiles: ["observability", "full"]
+    <<: *restart
+    ports:
+      - "3100:3100"
+    volumes:
+      - loki_data:/loki
+    networks: [personal_os_net]
+
+  tailscale:
+    image: tailscale/tailscale:v1.76.1
+    container_name: personal-os-tailscale
+    profiles: ["mesh", "full"]
+    <<: *restart
+    environment:
+      TS_AUTHKEY: ${TAILSCALE_AUTHKEY:-}
+      TS_HOSTNAME: ${TAILSCALE_HOSTNAME:-personal-os-dev}
+      TS_STATE_DIR: ${TAILSCALE_STATE_DIR:-/var/lib/tailscale}
+      TS_EXTRA_ARGS: --accept-routes=false
+    volumes:
+      - tailscale_state:/var/lib/tailscale
+      - /dev/net/tun:/dev/net/tun
+    cap_add: ["NET_ADMIN", "NET_RAW"]
+    networks: [personal_os_net]

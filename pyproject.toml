@@ -1,0 +1,13 @@
+[project]
+name = "personal-os"
+version = "0.1.0"
+description = "Sovereign modular personal OS"
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

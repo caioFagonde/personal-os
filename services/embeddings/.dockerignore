@@ -1,0 +1,1 @@
+\n__pycache__/\n*.pyc\n.pytest_cache/\n.venv/\n.env\n.env.*\n*.log\nlogs/\nworkspace/\nnode_modules/\n.git/\n

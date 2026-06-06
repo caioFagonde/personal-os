@@ -1,0 +1,29 @@
+id: geospatial
+name: Geospatial Memory
+version: 0.1.0
+description: Offline maps, PostGIS, pgRouting, POIs, route planning, geospatial memories,
+  and field notes.
+routes:
+  web: /geospatial
+  api: /api/geospatial
+permissions:
+- geo.read
+- geo.write
+- maps.offline
+- notes.read
+- notes.write
+events:
+  publishes:
+  - geospatial.memory.created
+  - route.planned
+  subscribes:
+  - note.created
+  - ar.anchor.created
+storage:
+  tables:
+  - geospatial_memories
+  - pois
+  - routes
+sync:
+  enabled: true
+  strategy: local-first

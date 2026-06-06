@@ -1,0 +1,1 @@
+-- Module-specific migration placeholder for zettelkasten. Core shared tables already exist in infra/postgres/migrations/001_core.sql.

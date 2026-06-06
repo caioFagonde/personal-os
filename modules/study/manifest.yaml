@@ -1,0 +1,28 @@
+id: study
+name: Study Engine
+version: 0.1.0
+description: Reading plans, concept extraction, Socratic flashcards, spaced repetition,
+  and progress graphs.
+routes:
+  web: /study
+  api: /api/study
+permissions:
+- notes.read
+- notes.write
+- files.read
+- notifications.send
+events:
+  publishes:
+  - study.session.completed
+  - study.card.reviewed
+  subscribes:
+  - file.ingested
+  - calendar.block.completed
+storage:
+  tables:
+  - study_items
+  - study_sessions
+  - flashcards
+sync:
+  enabled: true
+  strategy: local-first

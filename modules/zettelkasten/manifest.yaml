@@ -1,0 +1,30 @@
+id: zettelkasten
+name: Zettelkasten
+version: 0.1.0
+description: Notes, backlinks, tags, embeddings, georeferenced notes, and Obsidian-compatible
+  import/export.
+routes:
+  web: /zettelkasten
+  api: /api/zettelkasten
+permissions:
+- notes.read
+- notes.write
+- files.read
+- embeddings.write
+- geo.read
+events:
+  publishes:
+  - note.created
+  - note.updated
+  - note.linked
+  subscribes:
+  - file.ingested
+  - geospatial.memory.created
+storage:
+  tables:
+  - notes
+  - note_links
+  - note_embeddings
+sync:
+  enabled: true
+  strategy: crdt-text
