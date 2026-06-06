@@ -1,0 +1,39 @@
+id: automation
+name: Automation Engine
+version: 0.6.0
+description: DAG workflows, event triggers, schedules, n8n bridge, approvals, notification routing, and command-template orchestration.
+routes:
+  web: /automation
+  api: /api/automation
+permissions:
+  - automation:read
+  - automation:write
+  - command:request
+  - notifications:send
+  - module:read
+  - module:write
+events:
+  publishes:
+    - automation.workflow.started
+    - automation.workflow.completed
+    - automation.workflow.failed
+    - automation.approval.requested
+    - automation.side_effect.queued
+  subscribes:
+    - study.session.completed
+    - file.ingested
+    - sync.entity.changed
+    - research.document.ingested
+    - geospatial.memory.created
+storage:
+  tables:
+    - automation_workflows
+    - automation_runs
+    - automation_run_steps
+    - automation_events
+    - automation_schedules
+    - automation_approvals
+    - automation_outbox
+sync:
+  enabled: true
+  strategy: local-first

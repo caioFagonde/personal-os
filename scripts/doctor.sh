@@ -10,6 +10,9 @@ check pnpm
 check python3
 check adb
 check tailscale
+check cargo
+check rustc
+check java
 [[ -f .env ]] && echo "✓ .env present" || echo "✗ .env missing"
 ./scripts/check-secrets.sh || true
 if [[ -f .env ]]; then

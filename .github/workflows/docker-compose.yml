@@ -1,0 +1,31 @@
+name: docker-compose
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  compose-config-and-build-context:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Generate env
+        run: |
+          cp .env.example .env
+          python scripts/generate-env.py .env
+      - name: Validate compose profiles
+        run: |
+          docker compose --env-file .env --profile core config >/tmp/core.yml
+          docker compose --env-file .env --profile apps config >/tmp/apps.yml
+          docker compose --env-file .env --profile ai config >/tmp/ai.yml
+          docker compose --env-file .env --profile maps config >/tmp/maps.yml
+          docker compose --env-file .env --profile automation config >/tmp/automation.yml
+          docker compose --env-file .env --profile research config >/tmp/research.yml
+          docker compose --env-file .env --profile observability config >/tmp/observability.yml
+          docker compose --env-file .env --profile full config >/tmp/full.yml
+      - name: Build first-party images
+        run: docker compose --env-file .env --profile core build api-gateway sync-engine command-bus module-service research-service

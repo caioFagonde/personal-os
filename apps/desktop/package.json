@@ -3,16 +3,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "tauri": "tauri",
+    "validate": "node scripts/validate-tauri-config.mjs",
     "dev": "tauri dev",
     "build": "tauri build",
-    "lint": "echo desktop lint pending",
-    "test": "echo desktop tests pending"
-  },
-  "dependencies": {
-    "@tauri-apps/api": "^2.1.1"
+    "test": "cargo test --manifest-path src-tauri/Cargo.toml",
+    "lint": "cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings",
+    "format": "cargo fmt --manifest-path src-tauri/Cargo.toml -- --check"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.1.0"
-  }
+  },
+  "version": "0.7.0"
 }

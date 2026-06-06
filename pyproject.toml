@@ -1,13 +1,25 @@
 [project]
 name = "personal-os"
-version = "0.1.0"
+version = "0.7.0"
 description = "Sovereign modular personal OS"
 requires-python = ">=3.12"
 
 [tool.ruff]
-line-length = 100
+line-length = 120
 target-version = "py312"
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
-testpaths = ["tests"]
+testpaths = [
+  "tests",
+  "services/api-gateway/tests",
+  "services/sync-engine/tests",
+  "services/command-bus/tests",
+  "services/module-service/tests",
+  "services/research-service/tests",
+  "services/automation-service/tests"
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false

@@ -1,0 +1,27 @@
+id: ar-memory
+name: AR Memory Palace
+version: 0.5.0
+description: Spatial anchors, reference markers, device orientation projection, and georeferenced note overlays.
+routes:
+  web: /ar-memory
+  api: /api/ar
+permissions:
+  - notes.read
+  - geospatial.read
+  - sensors.orientation
+  - camera.read
+  - location.read
+events:
+  publishes:
+    - ar.anchor.created
+    - ar.anchor.observed
+  subscribes:
+    - zettelkasten.note.created
+    - geospatial.memory.created
+storage:
+  tables:
+    - ar_anchors
+    - ar_anchor_observations
+sync:
+  enabled: true
+  strategy: local-first

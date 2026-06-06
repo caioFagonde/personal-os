@@ -1,3 +1,19 @@
-# Desktop shell
+# Personal OS Desktop
 
-Default choice: Tauri, not Electron. Tauri reduces bundled runtime size and attack surface while wrapping the same Quasar web shell. Use Electron only if a module later needs Chromium-specific APIs or mature plugin support unavailable in Tauri.
+Tauri shell around the shared Quasar application.
+
+## Development
+
+```bash
+pnpm install
+pnpm --dir apps/desktop validate
+pnpm --dir apps/desktop dev
+```
+
+## Release build
+
+```bash
+pnpm --dir apps/desktop build
+```
+
+Tauri is the default desktop runtime because it keeps the desktop shell smaller and reduces the attack surface compared with bundling a complete Chromium runtime per app.

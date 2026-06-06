@@ -1,0 +1,31 @@
+id: research
+name: Research Ingestion
+version: 0.5.0
+description: Open-access search, authorized URL ingestion, PDF extraction, chunks, citations, and local document search.
+routes:
+  web: /research
+  api: /api/research
+permissions:
+  - research.read
+  - research.write
+  - files.read
+  - files.write
+  - embeddings.write
+events:
+  publishes:
+    - research.search.completed
+    - research.document.ingested
+    - research.citation.extracted
+  subscribes:
+    - file.ingested
+storage:
+  tables:
+    - research_search_runs
+    - research_search_results
+    - research_documents
+    - research_chunks
+    - research_citations
+    - research_ingestion_jobs
+sync:
+  enabled: true
+  strategy: local-first

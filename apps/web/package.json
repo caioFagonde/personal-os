@@ -6,9 +6,14 @@
     "dev": "quasar dev --host 0.0.0.0 --port 9000",
     "build": "quasar build",
     "lint": "eslint . --ext .ts,.vue || true",
-    "test": "echo 'web tests pending'",
-    "cap:sync": "quasar mode add capacitor || true && quasar build -m capacitor -T android",
-    "cap:run:android": "npx cap run android"
+    "test": "vitest run --coverage",
+    "cap:sync": "quasar build && npx cap sync android",
+    "cap:run:android": "npx cap run android",
+    "test:unit": "vitest run",
+    "coverage": "vitest run --coverage",
+    "typecheck": "vue-tsc --noEmit",
+    "cap:add:android": "npx cap add android",
+    "cap:build:android": "quasar build && npx cap sync android && cd android && ./gradlew assembleDebug"
   },
   "dependencies": {
     "@capacitor/android": "^6.1.2",
@@ -20,10 +25,21 @@
     "quasar": "^2.17.0",
     "vue": "^3.5.12",
     "vue-router": "^4.4.5",
-    "localforage": "^1.10.0"
+    "localforage": "^1.10.0",
+    "@capacitor/app": "^6.0.1",
+    "@capacitor/device": "^6.0.1",
+    "@capacitor/haptics": "^6.0.1",
+    "@capacitor/local-notifications": "^6.1.0"
   },
   "devDependencies": {
     "typescript": "^5.6.3",
-    "vite": "^5.4.10"
-  }
+    "vite": "^5.4.10",
+    "@vitejs/plugin-vue": "^5.1.4",
+    "@vitest/coverage-v8": "^2.1.4",
+    "@vue/test-utils": "^2.4.6",
+    "jsdom": "^25.0.1",
+    "vitest": "^2.1.4",
+    "vue-tsc": "^2.1.8"
+  },
+  "version": "0.7.0"
 }

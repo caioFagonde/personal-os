@@ -1,0 +1,50 @@
+name: backend-integration
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  compose-core-health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Generate local env
+        run: |
+          cp .env.example .env
+          python scripts/generate-env.py .env
+          sed -i 's/AUTH_REQUIRED=false/AUTH_REQUIRED=true/' .env
+      - name: Compose config validation
+        run: docker compose --env-file .env --profile core config >/tmp/personal-os-compose.yml
+      - name: Start core stack
+        run: docker compose --env-file .env --profile core up -d --build
+      - name: Wait for health checks
+        run: |
+          for i in {1..90}; do
+            curl -fsS http://localhost:8080/health && \
+            curl -fsS http://localhost:8081/health && \
+            curl -fsS http://localhost:8082/health && \
+            curl -fsS http://localhost:8083/health && exit 0
+            sleep 2
+          done
+          docker compose --env-file .env --profile core ps
+          docker compose --env-file .env --profile core logs --tail=200
+          exit 1
+      - name: Device auth smoke test through gateway
+        run: |
+          TOKEN=$(curl -fsS -X POST http://localhost:8080/api/devices/register \
+            -H 'content-type: application/json' \
+            -d '{"device_key":"ci-device","name":"CI Device","kind":"web","platform":"github-actions"}' | python -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
+          curl -fsS -H "authorization: Bearer $TOKEN" http://localhost:8080/api/modules
+          curl -fsS -H "authorization: Bearer $TOKEN" http://localhost:8080/api/proxy/sync/api/sync/health
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose --env-file .env --profile core logs --tail=300
+      - name: Stop stack
+        if: always()
+        run: docker compose --env-file .env --profile core down -v --remove-orphans

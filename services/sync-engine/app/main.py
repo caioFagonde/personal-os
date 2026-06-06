@@ -8,16 +8,33 @@ from typing import Any
 from uuid import UUID
 
 import asyncpg
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+
+from .security import optional_principal, require_scope
 
 from .conflict import resolve_payload
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://personal_os:personal_os@localhost:5432/personal_os")
 ARTIFACT_DIR = os.environ.get("LOCAL_ARTIFACT_DIR", "/tmp/personal-os-artifacts")
+STORAGE_BACKEND = os.environ.get("STORAGE_BACKEND", "local").lower()
+MINIO_ENDPOINT = os.environ.get("MINIO_ENDPOINT", "http://minio:9000")
+MINIO_ACCESS_KEY = os.environ.get("MINIO_ROOT_USER", "")
+MINIO_SECRET_KEY = os.environ.get("MINIO_ROOT_PASSWORD", "")
+MINIO_BUCKET = os.environ.get("MINIO_BUCKET", "artifacts")
 app = FastAPI(title="Personal OS Sync Engine", version="0.2.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+
+
+@app.middleware("http")
+async def require_service_auth(request: Request, call_next):
+    if request.url.path in {"/health", "/openapi.json"} or request.url.path.startswith(("/docs", "/redoc")):
+        return await call_next(request)
+    principal = optional_principal(request.headers.get("authorization"))
+    require_scope(principal, "sync:read" if request.method == "GET" else "sync:write")
+    request.state.principal = principal
+    return await call_next(request)
 _pool: asyncpg.Pool | None = None
 
 
@@ -214,7 +231,49 @@ async def initiate_attachment(payload: AttachmentInit) -> dict[str, Any]:
             payload.encrypted,
             device_id,
         )
-    return {"attachment_id": str(attachment_id), "object_key": object_key, "upload_url": f"/api/attachments/{attachment_id}/content"}
+    if STORAGE_BACKEND == "minio":
+        return {
+            "attachment_id": str(attachment_id),
+            "object_key": object_key,
+            "storage_provider": "minio",
+            "upload_method": "PUT",
+            "upload_url": presign_minio_put(object_key, payload.content_type),
+        }
+    return {
+        "attachment_id": str(attachment_id),
+        "object_key": object_key,
+        "storage_provider": "local",
+        "upload_method": "POST",
+        "upload_url": f"/api/attachments/{attachment_id}/content",
+    }
+
+
+def presign_minio_put(object_key: str, content_type: str) -> str:
+    try:
+        import boto3
+        from botocore.client import Config
+    except Exception as exc:  # pragma: no cover - optional runtime dependency branch
+        raise HTTPException(status_code=503, detail="boto3 is required for MinIO presigned uploads") from exc
+    if not MINIO_ACCESS_KEY or not MINIO_SECRET_KEY:
+        raise HTTPException(status_code=503, detail="MinIO credentials are not configured")
+    client = boto3.client(
+        "s3",
+        endpoint_url=MINIO_ENDPOINT,
+        aws_access_key_id=MINIO_ACCESS_KEY,
+        aws_secret_access_key=MINIO_SECRET_KEY,
+        config=Config(signature_version="s3v4"),
+        region_name="us-east-1",
+    )
+    try:
+        client.head_bucket(Bucket=MINIO_BUCKET)
+    except Exception:
+        client.create_bucket(Bucket=MINIO_BUCKET)
+    return client.generate_presigned_url(
+        "put_object",
+        Params={"Bucket": MINIO_BUCKET, "Key": object_key, "ContentType": content_type},
+        ExpiresIn=900,
+        HttpMethod="PUT",
+    )
 
 
 @app.put("/api/attachments/{attachment_id}/content")

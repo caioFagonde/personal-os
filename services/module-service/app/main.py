@@ -9,13 +9,26 @@ from typing import Any
 from uuid import UUID
 
 import asyncpg
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+
+from .security import optional_principal, require_scope
+from .ar_math import Vec3, project_anchor_from_orientation, yaw_billboard_angle
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://personal_os:personal_os@localhost:5432/personal_os")
 app = FastAPI(title="Personal OS Module Service", version="0.1.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+
+
+@app.middleware("http")
+async def require_service_auth(request: Request, call_next):
+    if request.url.path in {"/health", "/openapi.json"} or request.url.path.startswith(("/docs", "/redoc")):
+        return await call_next(request)
+    principal = optional_principal(request.headers.get("authorization"))
+    require_scope(principal, "module:read" if request.method == "GET" else "module:write")
+    request.state.principal = principal
+    return await call_next(request)
 _pool: asyncpg.Pool | None = None
 
 
@@ -96,6 +109,63 @@ class GeoMemoryIn(BaseModel):
     altitude: float | None = None
     tags: list[str] = Field(default_factory=list)
     properties: dict[str, Any] = Field(default_factory=dict)
+
+
+class MapDatasetIn(BaseModel):
+    name: str
+    dataset_type: str = Field(default="mbtiles", pattern="^(mbtiles|pmtiles|osm_pbf|geojson|raster|other)$")
+    local_path: str
+    min_zoom: int | None = Field(default=None, ge=0, le=24)
+    max_zoom: int | None = Field(default=None, ge=0, le=24)
+    attribution: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class RoutePlanRequest(BaseModel):
+    from_latitude: float
+    from_longitude: float
+    to_latitude: float
+    to_longitude: float
+    profile: str = "walking-default"
+
+
+class ARAnchorIn(BaseModel):
+    device_key: str = "module-service"
+    title: str
+    anchor_type: str = "note"
+    note_id: UUID | None = None
+    geospatial_memory_id: UUID | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    altitude: float | None = None
+    local_x: float = 0
+    local_y: float = 0
+    local_z: float = 0
+    yaw: float = 0
+    pitch: float = 0
+    roll: float = 0
+    reference_marker: str | None = None
+    properties: dict[str, Any] = Field(default_factory=dict)
+
+
+class ARAnchorProjection(BaseModel):
+    alpha: float = 0
+    beta: float = 0
+    gamma: float = 0
+    distance_m: float = Field(gt=0)
+
+
+class ARObservationIn(BaseModel):
+    device_key: str = "module-service"
+    latitude: float | None = None
+    longitude: float | None = None
+    altitude: float | None = None
+    alpha: float | None = None
+    beta: float | None = None
+    gamma: float | None = None
+    distance_m: float | None = None
+    quality: float = Field(default=0.5, ge=0, le=1)
+    payload: dict[str, Any] = Field(default_factory=dict)
 
 
 @app.on_event("startup")
@@ -407,6 +477,157 @@ async def nearby(latitude: float = Query(...), longitude: float = Query(...), ra
             radius_m,
         )
     return [dict(r) for r in rows]
+
+
+# Maps and routing -------------------------------------------------------------
+@app.get("/api/geospatial/map-datasets")
+async def list_map_datasets() -> list[dict[str, Any]]:
+    p = await pool()
+    async with p.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id::text, name, dataset_type, local_path, min_zoom, max_zoom, attribution, status, metadata, created_at, updated_at
+            FROM map_datasets ORDER BY updated_at DESC
+            """
+        )
+    return [dict(r) for r in rows]
+
+
+@app.post("/api/geospatial/map-datasets")
+async def register_map_dataset(payload: MapDatasetIn) -> dict[str, Any]:
+    p = await pool()
+    async with p.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            INSERT INTO map_datasets(name, dataset_type, local_path, min_zoom, max_zoom, attribution, metadata)
+            VALUES($1,$2,$3,$4,$5,$6,$7::jsonb)
+            ON CONFLICT(local_path) DO UPDATE SET name=EXCLUDED.name, dataset_type=EXCLUDED.dataset_type, min_zoom=EXCLUDED.min_zoom, max_zoom=EXCLUDED.max_zoom, attribution=EXCLUDED.attribution, metadata=EXCLUDED.metadata, updated_at=now()
+            RETURNING id::text, name, dataset_type, local_path, min_zoom, max_zoom, attribution, status, metadata, created_at, updated_at
+            """,
+            payload.name,
+            payload.dataset_type,
+            payload.local_path,
+            payload.min_zoom,
+            payload.max_zoom,
+            payload.attribution,
+            json.dumps(payload.metadata),
+        )
+    return dict(row)
+
+
+@app.post("/api/geospatial/routes/plan")
+async def plan_route(payload: RoutePlanRequest) -> dict[str, Any]:
+    p = await pool()
+    async with p.acquire() as conn:
+        has_routing = bool(await conn.fetchval("SELECT to_regclass('public.ways_noded') IS NOT NULL"))
+        profile = await conn.fetchrow("SELECT name, mode FROM routing_profiles WHERE name=$1", payload.profile)
+    coordinates = [[payload.from_longitude, payload.from_latitude], [payload.to_longitude, payload.to_latitude]]
+    return {
+        "profile": payload.profile,
+        "mode": profile["mode"] if profile else "walk",
+        "routing_backend": "pgRouting" if has_routing else "straight-line-fallback",
+        "geojson": {"type": "Feature", "properties": {"fallback": not has_routing}, "geometry": {"type": "LineString", "coordinates": coordinates}},
+    }
+
+
+# AR memory -------------------------------------------------------------------
+@app.get("/api/ar/anchors")
+async def list_ar_anchors(reference_marker: str | None = None) -> list[dict[str, Any]]:
+    p = await pool()
+    async with p.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id::text, entity_id::text, note_id::text, geospatial_memory_id::text, title, anchor_type,
+                   ST_Y(geom::geometry) AS latitude, ST_X(geom::geometry) AS longitude, ST_Z(geom::geometry) AS altitude,
+                   local_x, local_y, local_z, yaw, pitch, roll, reference_marker, drift_state, properties, created_at, updated_at
+            FROM ar_anchors
+            WHERE ($1::text IS NULL OR reference_marker=$1)
+            ORDER BY updated_at DESC LIMIT 500
+            """,
+            reference_marker,
+        )
+    return [dict(r) for r in rows]
+
+
+@app.post("/api/ar/anchors")
+async def create_ar_anchor(payload: ARAnchorIn) -> dict[str, Any]:
+    p = await pool()
+    async with p.acquire() as conn:
+        device_id = await ensure_device(conn, payload.device_key)
+        entity_id = await create_entity(conn, "ar-memory", "ar_anchor", None, device_id)
+        row = await conn.fetchrow(
+            """
+            INSERT INTO ar_anchors(entity_id, note_id, geospatial_memory_id, title, anchor_type, geom, local_x, local_y, local_z, yaw, pitch, roll, reference_marker, properties)
+            VALUES(
+                $1,$2,$3,$4,$5,
+                CASE WHEN $6::double precision IS NULL OR $7::double precision IS NULL THEN NULL ELSE ST_SetSRID(ST_MakePoint($7,$6,COALESCE($8,0)),4326)::geography END,
+                $9,$10,$11,$12,$13,$14,$15,$16::jsonb
+            )
+            RETURNING id::text, entity_id::text, note_id::text, geospatial_memory_id::text, title, anchor_type,
+                      ST_Y(geom::geometry) AS latitude, ST_X(geom::geometry) AS longitude, ST_Z(geom::geometry) AS altitude,
+                      local_x, local_y, local_z, yaw, pitch, roll, reference_marker, drift_state, properties, created_at, updated_at
+            """,
+            entity_id,
+            payload.note_id,
+            payload.geospatial_memory_id,
+            payload.title,
+            payload.anchor_type,
+            payload.latitude,
+            payload.longitude,
+            payload.altitude,
+            payload.local_x,
+            payload.local_y,
+            payload.local_z,
+            payload.yaw,
+            payload.pitch,
+            payload.roll,
+            payload.reference_marker,
+            json.dumps(payload.properties),
+        )
+        await record_change(conn, device_id, "ar-memory", "ar_anchor", row["entity_id"], "create", dict(row))
+    return dict(row)
+
+
+@app.post("/api/ar/project")
+async def project_ar_anchor(payload: ARAnchorProjection) -> dict[str, float]:
+    point = project_anchor_from_orientation(payload.alpha, payload.beta, payload.gamma, payload.distance_m)
+    yaw = yaw_billboard_angle(point)
+    return {"local_x": point.x, "local_y": point.y, "local_z": point.z, "billboard_yaw_rad": yaw}
+
+
+@app.post("/api/ar/anchors/{anchor_id}/observations")
+async def observe_ar_anchor(anchor_id: UUID, payload: ARObservationIn) -> dict[str, Any]:
+    local = None
+    if payload.alpha is not None and payload.beta is not None and payload.gamma is not None and payload.distance_m is not None:
+        local = project_anchor_from_orientation(payload.alpha, payload.beta, payload.gamma, payload.distance_m)
+    p = await pool()
+    async with p.acquire() as conn:
+        device_id = await ensure_device(conn, payload.device_key)
+        exists = await conn.fetchval("SELECT id FROM ar_anchors WHERE id=$1", anchor_id)
+        if not exists:
+            raise HTTPException(status_code=404, detail="AR anchor not found")
+        row = await conn.fetchrow(
+            """
+            INSERT INTO ar_anchor_observations(anchor_id, device_id, latitude, longitude, altitude, alpha, beta, gamma, distance_m, local_x, local_y, local_z, quality, payload)
+            VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb)
+            RETURNING id::text, anchor_id::text, device_id::text, observed_at, latitude, longitude, altitude, alpha, beta, gamma, distance_m, local_x, local_y, local_z, quality, payload
+            """,
+            anchor_id,
+            device_id,
+            payload.latitude,
+            payload.longitude,
+            payload.altitude,
+            payload.alpha,
+            payload.beta,
+            payload.gamma,
+            payload.distance_m,
+            local.x if local else None,
+            local.y if local else None,
+            local.z if local else None,
+            payload.quality,
+            json.dumps(payload.payload),
+        )
+    return dict(row)
 
 
 # Helpers ---------------------------------------------------------------------

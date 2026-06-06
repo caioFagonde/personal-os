@@ -50,3 +50,11 @@ secrets/
 *token*.json
 credentials.json
 client_secret*.json
+
+# Phase 4 native packaging and test outputs
+apps/mobile/android/
+apps/mobile/ios/
+apps/desktop/src-tauri/target/
+apps/web/coverage/
+coverage/
+*.lcov

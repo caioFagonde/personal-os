@@ -1,0 +1,75 @@
+name: phase5-research-maps-ar
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  research-unit-coverage:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/research-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest pytest-cov
+      - name: Unit tests with coverage
+        run: |
+          pytest tests -q \
+            --cov=app.source_policy \
+            --cov=app.pdf_ingest \
+            --cov=app.acquisition \
+            --cov-branch \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage-research-service.xml \
+            --cov-fail-under=92
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-research-service
+          path: services/research-service/coverage-research-service.xml
+
+  ar-math-coverage:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/module-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest pytest-cov
+      - name: Unit tests with coverage
+        run: |
+          pytest tests/test_ar_math.py -q \
+            --cov=app.ar_math \
+            --cov-branch \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage-ar-math.xml \
+            --cov-fail-under=100
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-ar-math
+          path: services/module-service/coverage-ar-math.xml
+
+  scaffold-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install test dependencies
+        run: pip install pytest PyYAML
+      - name: Scaffold policy tests
+        run: pytest tests/test_phase5_scaffold.py -q

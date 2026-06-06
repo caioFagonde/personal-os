@@ -24,6 +24,7 @@ volumes:
   grafana_data:
   prometheus_data:
   loki_data:
+  otel_data:
   tailscale_state:
 
 services:
@@ -93,6 +94,15 @@ services:
       MODULES_DIR: /workspace/modules
       DATABASE_URL: ${DATABASE_URL}
       NATS_URL: ${NATS_URL:-nats://nats:4222}
+      SYNC_ENGINE_URL: http://sync-engine:8081
+      MODULE_SERVICE_URL: http://module-service:8083
+      COMMAND_BUS_URL: http://command-bus:8082
+      RESEARCH_SERVICE_URL: http://research-service:8084
+      AUTOMATION_SERVICE_URL: http://automation-service:8085
+      DIGITAL_TWIN_SERVICE_URL: http://digital-twin-service:8086
+      AUTH_REQUIRED: ${AUTH_REQUIRED:-false}
+      ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS:-900}
+      REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-30}
     ports:
       - "${API_GATEWAY_PORT:-8080}:8080"
     volumes:
@@ -118,6 +128,12 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL}
       NATS_URL: ${NATS_URL:-nats://nats:4222}
+      AUTH_REQUIRED: ${AUTH_REQUIRED:-false}
+      STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-http://minio:9000}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: ${MINIO_BUCKET:-artifacts}
     ports:
       - "${SYNC_ENGINE_PORT:-8081}:8081"
     depends_on:
@@ -140,6 +156,7 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL}
       NATS_URL: ${NATS_URL:-nats://nats:4222}
+      AUTH_REQUIRED: ${AUTH_REQUIRED:-false}
     ports:
       - "${COMMAND_BUS_PORT:-8082}:8082"
     depends_on:
@@ -149,6 +166,33 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      <<: *health
+    networks: [personal_os_net]
+
+  automation-service:
+    build:
+      context: ./services/automation-service
+    container_name: personal-os-automation-service
+    profiles: ["automation", "full"]
+    <<: *restart
+    env_file: .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      NATS_URL: ${NATS_URL:-nats://nats:4222}
+      AUTH_REQUIRED: ${AUTH_REQUIRED:-false}
+      N8N_WEBHOOK_SECRET: ${N8N_WEBHOOK_SECRET}
+      NTFY_BASE_URL: ${NTFY_BASE_URL:-http://ntfy:80}
+      COMMAND_BUS_URL: http://command-bus:8082
+      MODULE_SERVICE_URL: http://module-service:8083
+    ports:
+      - "${AUTOMATION_SERVICE_PORT:-8085}:8085"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8085/health"]
       <<: *health
     networks: [personal_os_net]
 
@@ -162,6 +206,7 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL}
       NATS_URL: ${NATS_URL:-nats://nats:4222}
+      AUTH_REQUIRED: ${AUTH_REQUIRED:-false}
     ports:
       - "${MODULE_SERVICE_PORT:-8083}:8083"
     depends_on:
@@ -171,6 +216,52 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8083/health"]
+      <<: *health
+    networks: [personal_os_net]
+
+
+  digital-twin-service:
+    build:
+      context: ./services/digital-twin-service
+    container_name: personal-os-digital-twin-service
+    profiles: ["ai", "full"]
+    <<: *restart
+    env_file: .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      AUTH_REQUIRED: ${AUTH_REQUIRED:-false}
+    ports:
+      - "${DIGITAL_TWIN_SERVICE_PORT:-8086}:8086"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/health"]
+      <<: *health
+    networks: [personal_os_net]
+
+  research-service:
+    build:
+      context: ./services/research-service
+    container_name: personal-os-research-service
+    profiles: ["research", "full"]
+    <<: *restart
+    env_file: .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      AUTH_REQUIRED: ${AUTH_REQUIRED:-false}
+      RESEARCH_CACHE_DIR: /data/research/pdf-cache
+      RESEARCH_FETCH_MAX_BYTES: ${RESEARCH_FETCH_MAX_BYTES:-52428800}
+      FORBIDDEN_SOURCE_HOST_PATTERNS: ${FORBIDDEN_SOURCE_HOST_PATTERNS:-libgen,library genesis,z-library,zlibrary,z-lib,sci-hub,annas-archive,annasarchive}
+    ports:
+      - "${RESEARCH_SERVICE_PORT:-8084}:8084"
+    volumes:
+      - ./data/research:/data/research
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8084/health"]
       <<: *health
     networks: [personal_os_net]
 
@@ -184,7 +275,10 @@ services:
       VITE_API_URL: ${VITE_API_URL:-http://localhost:8080}
       VITE_SYNC_URL: ${VITE_SYNC_URL:-http://localhost:8081}
       VITE_COMMAND_BUS_URL: ${VITE_COMMAND_BUS_URL:-http://localhost:8082}
-      VITE_MODULE_API_URL: ${VITE_MODULE_API_URL:-http://localhost:8083}
+      VITE_MODULE_API_URL: ${VITE_MODULE_API_URL:-http://localhost:8080/api/proxy/modules}
+      VITE_RESEARCH_URL: ${VITE_RESEARCH_URL:-http://localhost:8080/api/proxy/research}
+      VITE_AUTOMATION_URL: ${VITE_AUTOMATION_URL:-http://localhost:8080/api/proxy/automation}
+      VITE_DIGITAL_TWIN_URL: ${VITE_DIGITAL_TWIN_URL:-http://localhost:8080/api/proxy/digital-twin}
     ports:
       - "${WEB_PORT:-9000}:9000"
     depends_on:
@@ -318,6 +412,8 @@ services:
       - "3000:3000"
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./infra/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/observability/grafana/dashboards:/etc/grafana/provisioning/dashboards/json:ro
     networks: [personal_os_net]
 
   loki:
@@ -329,6 +425,22 @@ services:
       - "3100:3100"
     volumes:
       - loki_data:/loki
+    networks: [personal_os_net]
+
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.114.0
+    container_name: personal-os-otel-collector
+    profiles: ["observability", "full"]
+    <<: *restart
+    command: ["--config=/etc/otel-collector.yml"]
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "9464:9464"
+    volumes:
+      - ./infra/observability/otel-collector.yml:/etc/otel-collector.yml:ro
+      - otel_data:/data
     networks: [personal_os_net]
 
   tailscale:

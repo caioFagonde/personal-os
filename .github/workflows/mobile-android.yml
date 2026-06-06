@@ -1,0 +1,39 @@
+name: mobile-android
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  android-debug-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile=false
+      - name: Validate Capacitor config
+        run: pnpm --dir apps/mobile validate
+      - name: Add Android native project
+        run: pnpm --dir apps/mobile cap:add:android
+      - name: Sync Android project
+        run: pnpm --dir apps/mobile cap:sync
+      - name: Build debug APK
+        run: cd apps/mobile/android && ./gradlew assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: personal-os-debug-apk
+          path: apps/mobile/android/app/build/outputs/apk/debug/*.apk

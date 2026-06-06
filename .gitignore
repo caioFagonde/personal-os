@@ -131,3 +131,18 @@ pdf-cache/
 # Local AI/cache
 .ollama/
 models/
+
+# Phase 4 native packaging
+apps/desktop/src-tauri/target/
+apps/mobile/android/
+apps/mobile/ios/
+apps/web/coverage/
+coverage/
+*.lcov
+
+# Phase 5 runtime research/map caches
+data/research/
+data/maps/*.mbtiles
+data/maps/*.pmtiles
+data/maps/*.osm.pbf
+data/maps/*.gpkg

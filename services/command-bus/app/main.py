@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import hashlib
-import hmac
 import json
 import os
 from datetime import datetime, timedelta, timezone
@@ -9,14 +7,27 @@ from typing import Any
 from uuid import UUID
 
 import asyncpg
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+
+from .security import optional_principal, require_scope
+from .signing import verify_signature as verify_command_signature
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://personal_os:personal_os@localhost:5432/personal_os")
 COMMAND_SIGNING_SECRET = os.environ.get("COMMAND_SIGNING_SECRET", "local-dev-only-change-me")
 app = FastAPI(title="Personal OS Command Bus", version="0.2.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+
+
+@app.middleware("http")
+async def require_service_auth(request: Request, call_next):
+    if request.url.path in {"/health", "/openapi.json"} or request.url.path.startswith(("/docs", "/redoc")):
+        return await call_next(request)
+    principal = optional_principal(request.headers.get("authorization"))
+    require_scope(principal, "command:read" if request.method == "GET" else "command:request")
+    request.state.principal = principal
+    return await call_next(request)
 _pool: asyncpg.Pool | None = None
 
 
@@ -222,6 +233,4 @@ async def audit(conn: asyncpg.Connection, device_id: UUID, action: str, target_t
 
 
 def verify_signature(params: dict[str, Any], signature: str) -> bool:
-    body = json.dumps(params, sort_keys=True, separators=(",", ":")).encode()
-    expected = hmac.new(COMMAND_SIGNING_SECRET.encode(), body, hashlib.sha256).hexdigest()
-    return hmac.compare_digest(expected, signature)
+    return verify_command_signature(params, signature, COMMAND_SIGNING_SECRET)

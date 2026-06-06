@@ -1,0 +1,74 @@
+name: Phase 6 Automation
+
+on:
+  push:
+    paths:
+      - 'services/automation-service/**'
+      - 'infra/postgres/migrations/005_phase_6_automation.sql'
+      - 'modules/automation/**'
+      - 'apps/web/src/pages/AutomationPage.vue'
+      - 'apps/web/src/services/api.ts'
+      - '.github/workflows/phase6-automation.yml'
+  pull_request:
+    paths:
+      - 'services/automation-service/**'
+      - 'infra/postgres/migrations/005_phase_6_automation.sql'
+      - 'modules/automation/**'
+      - 'apps/web/src/pages/AutomationPage.vue'
+      - 'apps/web/src/services/api.ts'
+      - '.github/workflows/phase6-automation.yml'
+
+jobs:
+  automation-unit-coverage:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/automation-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: pip install -r requirements.txt pytest pytest-cov
+      - run: >-
+          python -m pytest tests -q
+          --cov=app.dag
+          --cov=app.policy
+          --cov=app.executor
+          --cov=app.scheduler
+          --cov=app.n8n_bridge
+          --cov=app.notifications
+          --cov-branch
+          --cov-fail-under=96
+
+  automation-compose-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cp .env.example .env
+      - run: python3 scripts/generate-env.py .env
+      - run: docker compose --env-file .env --profile automation config >/tmp/compose-automation.yml
+      - run: grep -q personal-os-automation-service /tmp/compose-automation.yml
+
+  migration-smoke:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_DB: personal_os
+          POSTGRES_USER: personal_os
+          POSTGRES_PASSWORD: personal_os
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U personal_os -d personal_os"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - run: for migration in infra/postgres/migrations/*.sql; do PGPASSWORD=personal_os psql -h localhost -U personal_os -d personal_os -v ON_ERROR_STOP=1 -f "$migration"; done

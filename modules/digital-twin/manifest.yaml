@@ -1,0 +1,34 @@
+id: digital-twin
+name: Digital Twin Intelligence
+version: 0.8.0
+description: Unified personal ontology, timeline, state model, privacy-aware memory, and recommendation engine.
+routes:
+  web: /digital-twin
+  api: /api/digital-twin
+permissions:
+  - digital_twin:read
+  - digital_twin:write
+  - recommendations:write
+  - digital_twin:export
+events:
+  publishes:
+    - digital_twin.recommendation.created
+    - digital_twin.state.updated
+    - digital_twin.memory.recorded
+  subscribes:
+    - study.session.completed
+    - automation.run.completed
+    - research.document.ingested
+    - geospatial.memory.created
+    - mindfulness.session.completed
+storage:
+  tables:
+    - digital_twin_entities
+    - digital_twin_relationships
+    - digital_twin_timeline_events
+    - digital_twin_state_snapshots
+    - digital_twin_goals
+    - digital_twin_memory_records
+sync:
+  enabled: true
+  strategy: local-first

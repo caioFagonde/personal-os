@@ -7,7 +7,14 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,vue,json,yaml,yml,md}\"",
-    "test": "turbo run test"
+    "test": "turbo run test",
+    "test:backend": "make test-backend",
+    "test:web": "pnpm --dir apps/web test",
+    "test:mobile": "pnpm --dir apps/mobile validate",
+    "test:desktop": "pnpm --dir apps/desktop validate",
+    "test:phase6": "make test-phase6",
+    "test:phase7": "make test-phase7",
+    "test:design": "pnpm --dir packages/design-system test"
   },
   "devDependencies": {
     "prettier": "^3.3.3",

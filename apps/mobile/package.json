@@ -1,0 +1,29 @@
+{
+  "name": "@personal-os/mobile",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "validate": "node scripts/validate-capacitor-config.mjs",
+    "build:web": "pnpm --dir ../web build",
+    "cap:add:android": "test -d android || npx cap add android",
+    "cap:sync": "pnpm run build:web && npx cap sync android",
+    "android:debug": "pnpm run cap:sync && cd android && ./gradlew assembleDebug",
+    "android:run": "pnpm run cap:sync && npx cap run android",
+    "preflight": "node scripts/preflight.mjs",
+    "test": "vitest run tests"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.1.2",
+    "@capacitor/app": "^6.0.1",
+    "@capacitor/cli": "^6.1.2",
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/device": "^6.0.1",
+    "@capacitor/haptics": "^6.0.1",
+    "@capacitor/local-notifications": "^6.1.0"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.4",
+    "typescript": "^5.6.3"
+  },
+  "version": "0.7.0"
+}

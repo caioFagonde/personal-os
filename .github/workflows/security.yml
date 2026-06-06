@@ -1,0 +1,25 @@
+name: security
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  secret-and-hygiene-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run local secret scanner
+        run: ./scripts/check-secrets.sh
+      - name: Ensure no real env files are tracked
+        run: |
+          ! git ls-files | grep -E '(^|/)\.env($|\.)'
+          ! git ls-files | grep -E '(credentials|client_secret|token).*\.json$'
+      - name: Install and run pre-commit hooks
+        run: |
+          python -m pip install --upgrade pip pre-commit
+          pre-commit run --all-files

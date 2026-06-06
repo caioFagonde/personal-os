@@ -28,7 +28,7 @@ else
 fi
 
 info "Creating runtime folders"
-mkdir -p data/{postgres,postgis,qdrant,minio,ollama,nats,ntfy,tailscale,maps} logs tmp cache artifacts exports generated workspace pdf-cache
+mkdir -p data/{postgres,postgis,qdrant,minio,ollama,nats,ntfy,tailscale,maps,research} logs tmp cache artifacts exports generated workspace pdf-cache
 
 grep -q '<generate' .env && fail ".env still contains placeholder values. Run: python3 scripts/generate-env.py .env"
 
@@ -55,6 +55,17 @@ curl -fsS "http://localhost:${SYNC_ENGINE_PORT:-8081}/health" >/dev/null && ok "
 curl -fsS "http://localhost:${COMMAND_BUS_PORT:-8082}/health" >/dev/null && ok "Command bus healthy" || warn "Command bus not healthy yet"
 curl -fsS "http://localhost:${MODULE_SERVICE_PORT:-8083}/health" >/dev/null && ok "Module service healthy" || warn "Module service not healthy yet"
 
+info "Auth smoke test"
+AUTH_TOKEN="$(curl -fsS -X POST "http://localhost:${API_GATEWAY_PORT:-8080}/api/devices/register" \
+  -H 'content-type: application/json' \
+  -d '{"device_key":"bootstrap-cli","name":"Bootstrap CLI","kind":"desktop","platform":"linux"}' \
+  | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])' 2>/dev/null || true)"
+if [[ -n "${AUTH_TOKEN}" ]]; then
+  curl -fsS -H "authorization: Bearer ${AUTH_TOKEN}" "http://localhost:${API_GATEWAY_PORT:-8080}/api/modules" >/dev/null && ok "Gateway auth boundary healthy" || warn "Authenticated module request failed"
+else
+  warn "Could not mint bootstrap auth token"
+fi
+
 TS_IP=""
 if command -v tailscale >/dev/null 2>&1; then
   TS_IP="$(tailscale ip -4 2>/dev/null | head -1 || true)"
@@ -69,6 +80,8 @@ Local URLs:
   Sync engine:  http://localhost:${SYNC_ENGINE_PORT:-8081}
   Command bus:  http://localhost:${COMMAND_BUS_PORT:-8082}
   Module API:   http://localhost:${MODULE_SERVICE_PORT:-8083}
+  Research API: http://localhost:${RESEARCH_SERVICE_PORT:-8084}  (run: make up-research)
+  Automation:   http://localhost:${AUTOMATION_SERVICE_PORT:-8085}  (run: make up-automation)
   MinIO:        http://localhost:9001
   NATS monitor: http://localhost:8222
 
@@ -76,6 +89,7 @@ Tailscale IPv4: ${TS_IP:-not detected}
 
 Next:
   make logs
-  curl http://localhost:${API_GATEWAY_PORT:-8080}/api/modules
-  curl http://localhost:${SYNC_ENGINE_PORT:-8081}/api/sync/health
+  TOKEN=$(curl -fsS -X POST http://localhost:${API_GATEWAY_PORT:-8080}/api/devices/register -H 'content-type: application/json' -d '{"device_key":"cli","name":"CLI","kind":"desktop","platform":"linux"}' | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
+  curl -H "authorization: Bearer $TOKEN" http://localhost:${API_GATEWAY_PORT:-8080}/api/modules
+  curl -H "authorization: Bearer $TOKEN" http://localhost:${API_GATEWAY_PORT:-8080}/api/proxy/sync/api/sync/health
 EOF

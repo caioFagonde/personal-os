@@ -1,13 +1,30 @@
-export const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080'
-export const syncUrl = import.meta.env.VITE_SYNC_URL || 'http://localhost:8081'
-export const commandUrl = import.meta.env.VITE_COMMAND_BUS_URL || 'http://localhost:8082'
-export const moduleUrl = import.meta.env.VITE_MODULE_API_URL || 'http://localhost:8083'
+import { authHeaders, deviceKey, refreshToken, registerDevice } from './auth'
 
-export async function jsonFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
-  const res = await fetch(url, {
-    ...options,
-    headers: { 'content-type': 'application/json', ...(options.headers || {}) }
-  })
+export const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+export const syncUrl = import.meta.env.VITE_SYNC_URL || `${apiUrl}/api/proxy/sync`
+export const commandUrl = import.meta.env.VITE_COMMAND_BUS_URL || `${apiUrl}/api/proxy/commands`
+export const moduleUrl = import.meta.env.VITE_MODULE_API_URL || `${apiUrl}/api/proxy/modules`
+export const researchUrl = import.meta.env.VITE_RESEARCH_URL || `${apiUrl}/api/proxy/research`
+export const automationUrl = import.meta.env.VITE_AUTOMATION_URL || `${apiUrl}/api/proxy/automation`
+export const digitalTwinUrl = import.meta.env.VITE_DIGITAL_TWIN_URL || `${apiUrl}/api/proxy/digital-twin`
+
+export { deviceKey }
+
+export async function jsonFetch<T>(url: string, options: RequestInit = {}, retry = true): Promise<T> {
+  const headers = {
+    'content-type': 'application/json',
+    ...authHeaders(),
+    ...(options.headers || {})
+  }
+  const res = await fetch(url, { ...options, headers })
+  if (res.status === 401 && retry && !url.includes('/api/devices/register')) {
+    try {
+      await refreshToken(apiUrl)
+    } catch {
+      await registerDevice(apiUrl)
+    }
+    return jsonFetch<T>(url, options, false)
+  }
   if (!res.ok) {
     const text = await res.text()
     throw new Error(`${res.status} ${res.statusText}: ${text}`)
@@ -15,12 +32,23 @@ export async function jsonFetch<T>(url: string, options: RequestInit = {}): Prom
   return res.json()
 }
 
-export function deviceKey(): string {
-  const key = 'personal-os-device-key'
-  let value = localStorage.getItem(key)
-  if (!value) {
-    value = `web-${crypto.randomUUID()}`
-    localStorage.setItem(key, value)
+
+export async function uploadFile<T>(url: string, form: FormData, retry = true): Promise<T> {
+  const headers = {
+    ...authHeaders()
   }
-  return value
+  const res = await fetch(url, { method: 'POST', body: form, headers })
+  if (res.status === 401 && retry) {
+    try {
+      await refreshToken(apiUrl)
+    } catch {
+      await registerDevice(apiUrl)
+    }
+    return uploadFile<T>(url, form, false)
+  }
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`${res.status} ${res.statusText}: ${text}`)
+  }
+  return res.json()
 }

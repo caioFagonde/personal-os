@@ -1,0 +1,81 @@
+name: release-builds
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: Release channel
+        required: true
+        default: beta
+        type: choice
+        options: [nightly, alpha, beta, rc, stable]
+      version:
+        description: SemVer version
+        required: true
+        default: 0.7.0-beta.1
+
+jobs:
+  web-artifact:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile=false
+      - run: pnpm --dir apps/web build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: personal-os-web-${{ inputs.version }}
+          path: apps/web/dist/spa
+
+  android-debug-artifact:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - run: pnpm install --frozen-lockfile=false
+      - run: pnpm --dir apps/mobile preflight
+      - run: pnpm --dir apps/web build
+      - run: pnpm --dir apps/mobile cap:sync
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: personal-os-android-project-${{ inputs.version }}
+          path: apps/mobile/android
+          if-no-files-found: ignore
+
+  desktop-tauri-artifact:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+      - run: pnpm install --frozen-lockfile=false
+      - run: pnpm --dir apps/desktop build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: personal-os-desktop-${{ inputs.version }}
+          path: apps/desktop/src-tauri/target/release/bundle
+          if-no-files-found: ignore
