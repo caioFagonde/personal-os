@@ -43,6 +43,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Install scaffold test deps
+        run: python -m pip install -U pytest PyYAML
       - name: Phase 13 scaffold tests
         run: python -m pytest tests/test_phase13_scaffold.py -q
       - name: Readiness script

@@ -518,7 +518,7 @@ services:
     networks: [personal_os_net]
 
   searxng:
-    image: searxng/searxng:2024.11.11-333bb36
+    image: searxng/searxng:latest
     container_name: personal-os-searxng
     profiles: ["research", "full"]
     <<: *restart

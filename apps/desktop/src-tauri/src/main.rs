@@ -17,7 +17,11 @@ fn validate_deep_link(url: String) -> Result<String, String> {
 
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![desktop_health, desktop_runtime_context, validate_deep_link])
+        .invoke_handler(tauri::generate_handler![
+            desktop_health,
+            desktop_runtime_context,
+            validate_deep_link
+        ])
         .run(tauri::generate_context!())
         .expect("failed to run Personal OS desktop shell");
 }

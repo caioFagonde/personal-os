@@ -22,7 +22,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile=false
       - name: Unit tests with coverage
-        run: pnpm --dir apps/web test
+        run: pnpm --dir apps/web coverage
       - name: Typecheck
         run: pnpm --dir apps/web typecheck
       - name: Build SPA

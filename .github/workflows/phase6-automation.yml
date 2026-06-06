@@ -57,21 +57,19 @@ jobs:
 
   migration-smoke:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgis/postgis:16-3.4
-        env:
-          POSTGRES_DB: personal_os
-          POSTGRES_USER: personal_os
-          POSTGRES_PASSWORD: personal_os
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U personal_os -d personal_os"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y postgresql-client
-      - run: for migration in infra/postgres/migrations/*.sql; do PGPASSWORD=personal_os psql -h localhost -U personal_os -d personal_os -v ON_ERROR_STOP=1 -f "$migration"; done
+      - name: Prepare env
+        run: |
+          cp .env.example .env
+          python3 scripts/generate-env.py .env
+      - name: Start project Postgres image
+        run: docker compose --env-file .env --profile core up -d --build postgres
+      - name: Apply migrations
+        run: |
+          for i in {1..60}; do docker compose --env-file .env exec -T postgres pg_isready -U personal_os -d personal_os && break; sleep 2; done
+          for migration in infra/postgres/migrations/*.sql; do docker compose --env-file .env exec -T postgres psql -U personal_os -d personal_os -v ON_ERROR_STOP=1 < "$migration"; done
+      - name: Stop stack
+        if: always()
+        run: docker compose --env-file .env --profile core down -v || true

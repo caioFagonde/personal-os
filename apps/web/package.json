@@ -6,7 +6,7 @@
     "dev": "quasar dev --host 0.0.0.0 --port 9000",
     "build": "quasar build",
     "lint": "eslint . --ext .ts,.vue || true",
-    "test": "vitest run --coverage",
+    "test": "vitest run",
     "cap:sync": "quasar build && npx cap sync android",
     "cap:run:android": "npx cap run android",
     "test:unit": "vitest run",

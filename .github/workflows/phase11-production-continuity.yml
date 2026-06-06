@@ -25,7 +25,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r services/connector-service/requirements.txt pytest pytest-cov
+          pip install -r services/connector-service/requirements.txt pytest pytest-cov pytest-asyncio
       - name: Unit tests with coverage
         run: |
           cd services/connector-service
@@ -74,4 +74,4 @@ jobs:
           grep -q '/connector-worker' apps/web/src/router/routes.ts
           grep -q '/offline-queue' apps/web/src/router/routes.ts
           grep -q '/conflicts' apps/web/src/router/routes.ts
-          pnpm --dir apps/web test -- --run
+          pnpm --dir apps/web test

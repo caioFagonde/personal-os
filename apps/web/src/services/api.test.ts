@@ -32,4 +32,26 @@ describe('api service helpers', () => {
     expect(init.body).toBe(form)
     expect(init.headers).not.toHaveProperty('content-type')
   })
+
+  it('retries JSON requests after refresh on 401', async () => {
+    localStorage.setItem('personal-os-refresh-token', 'refresh')
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response('unauthorized', { status: 401 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: 'new', refresh_token: 'new-refresh' }), { status: 200, headers: { 'content-type': 'application/json' } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(jsonFetch('http://example.test/protected')).resolves.toEqual({ ok: true })
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+
+  it('retries file uploads by registering when refresh is missing', async () => {
+    vi.stubGlobal('crypto', { randomUUID: () => 'device-retry' })
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response('unauthorized', { status: 401 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: 'a', refresh_token: 'r' }), { status: 200, headers: { 'content-type': 'application/json' } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ uploaded: true }), { status: 200, headers: { 'content-type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(uploadFile('http://example.test/upload', new FormData())).resolves.toEqual({ uploaded: true })
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
 })

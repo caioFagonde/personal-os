@@ -23,7 +23,7 @@ jobs:
       - name: Run Phase 7 backend coverage gates
         run: |
           cd services/api-gateway
-          python -m PYTHONPATH=. pytest tests/test_service_identity.py tests/test_observability.py tests/test_release.py -q \
+          PYTHONPATH=. python -m pytest tests/test_service_identity.py tests/test_observability.py tests/test_release.py -q \
             --cov=app.service_identity --cov=app.observability --cov=app.release --cov-branch --cov-fail-under=96
 
   design-system-and-web-ux:
@@ -40,7 +40,7 @@ jobs:
       - name: Test web UX logic and design tokens
         run: |
           pnpm --dir packages/design-system test
-          pnpm --dir apps/web test -- --coverage
+          pnpm --dir apps/web coverage
 
   mobile-preflight:
     runs-on: ubuntu-latest
@@ -63,6 +63,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - name: Install Linux Tauri test dependencies
+        run: sudo apt-get update && sudo apt-get install -y libglib2.0-dev libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev pkg-config
       - name: Run Tauri Rust unit tests
         run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --lib
 

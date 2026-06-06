@@ -183,4 +183,5 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - run: python -m pip install -U pytest PyYAML
       - run: python -m pytest tests/test_phase12_scaffold.py -q
