@@ -1,0 +1,33 @@
+id: connectors
+name: Connector Onboarding
+version: 0.1.0
+description: OAuth, messaging, push notification, mesh networking, backup/restore, and device-pairing setup wizard.
+routes:
+  web: /connectors
+  api: /api/proxy/connectors
+permissions:
+  - connectors:read
+  - connectors:write
+  - cloud:write
+  - notifications:send
+events:
+  publishes:
+    - connector.connected
+    - connector.tested
+    - backup.created
+    - device.pairing.created
+  subscribes:
+    - message.queued
+    - sync.health.degraded
+storage:
+  tables:
+    - connector_accounts
+    - connector_oauth_states
+    - connector_health_checks
+    - connector_test_runs
+    - backup_manifests
+    - restore_drills
+    - device_pairing_codes
+sync:
+  enabled: true
+  strategy: local-first

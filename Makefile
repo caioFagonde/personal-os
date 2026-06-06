@@ -1,7 +1,7 @@
 SHELL := /usr/bin/env bash
 COMPOSE := docker compose --env-file .env
 
-.PHONY: install doctor up down up-research up-maps up-automation up-digital-twin up-capture up-study-companion logs backup restore mobile desktop test test-backend test-phase5 test-phase6 test-phase8 test-phase9 test-frontend test-mobile test-desktop lint format nuke migrate seed
+.PHONY: install doctor up down up-research up-maps up-automation up-digital-twin up-capture up-study-companion up-connectors logs backup restore mobile desktop test test-backend test-phase5 test-phase6 test-phase8 test-phase9 test-phase10 test-frontend test-mobile test-desktop lint format nuke migrate seed
 
 install:
 	./scripts/bootstrap.sh
@@ -33,6 +33,9 @@ up-capture:
 up-study-companion:
 	$(COMPOSE) --profile ai --profile research --profile apps up -d --build study-companion-service
 
+up-connectors:
+	$(COMPOSE) --profile core --profile connectors --profile automation up -d --build connector-service
+
 logs:
 	$(COMPOSE) logs -f --tail=200
 
@@ -54,7 +57,7 @@ mobile:
 desktop:
 	./scripts/deploy-desktop.sh
 
-test: test-backend test-phase5 test-phase6 test-phase8 test-phase9
+test: test-backend test-phase5 test-phase6 test-phase8 test-phase9 test-phase10
 	python -m pytest tests
 
 
@@ -80,6 +83,10 @@ test-phase9:
 	cd services/capture-service && python -m pytest tests -q --cov=app.parser --cov=app.delegation --cov=app.tasking --cov-branch --cov-fail-under=96
 	cd services/study-companion-service && python -m pytest tests -q --cov=app.retention --cov=app.analog --cov=app.routines --cov-branch --cov-fail-under=96
 	python -m pytest tests/test_phase9_scaffold.py -q
+
+test-phase10:
+	cd services/connector-service && python -m pytest tests -q --cov=app.oauth --cov=app.providers --cov=app.backup --cov-branch --cov-fail-under=96
+	python -m pytest tests/test_phase10_scaffold.py -q
 
 test-frontend:
 	pnpm --dir apps/web test

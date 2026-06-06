@@ -4,6 +4,17 @@ set -Eeuo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+MODE="core"
+AUTO_OPEN=false
+for arg in "$@"; do
+  case "$arg" in
+    --full) MODE="full" ;;
+    --apps) MODE="apps" ;;
+    --open) AUTO_OPEN=true ;;
+    --help|-h) echo "Usage: ./scripts/bootstrap.sh [--full] [--apps] [--open]"; exit 0 ;;
+  esac
+done
+
 red='\033[0;31m'; green='\033[0;32m'; yellow='\033[1;33m'; blue='\033[0;34m'; nc='\033[0m'
 info(){ echo -e "${blue}→${nc} $*"; }
 ok(){ echo -e "${green}✓${nc} $*"; }
@@ -32,8 +43,13 @@ mkdir -p data/{postgres,postgis,qdrant,minio,ollama,nats,ntfy,tailscale,maps,res
 
 grep -q '<generate' .env && fail ".env still contains placeholder values. Run: python3 scripts/generate-env.py .env"
 
-info "Starting core services"
-docker compose --env-file .env --profile core up -d --build
+info "Starting services ($MODE)"
+case "$MODE" in
+  full) docker compose --env-file .env --profile core --profile apps --profile automation --profile research --profile ai --profile connectors --profile observability up -d --build ;;
+  apps) docker compose --env-file .env --profile core --profile apps --profile connectors up -d --build ;;
+  core) docker compose --env-file .env --profile core up -d --build ;;
+  *) fail "Unknown bootstrap mode: $MODE" ;;
+esac
 
 info "Running core migrations"
 set -a; source .env; set +a
@@ -54,6 +70,9 @@ curl -fsS "http://localhost:${API_GATEWAY_PORT:-8080}/health" >/dev/null && ok "
 curl -fsS "http://localhost:${SYNC_ENGINE_PORT:-8081}/health" >/dev/null && ok "Sync engine healthy" || warn "Sync engine not healthy yet"
 curl -fsS "http://localhost:${COMMAND_BUS_PORT:-8082}/health" >/dev/null && ok "Command bus healthy" || warn "Command bus not healthy yet"
 curl -fsS "http://localhost:${MODULE_SERVICE_PORT:-8083}/health" >/dev/null && ok "Module service healthy" || warn "Module service not healthy yet"
+if [[ "$MODE" != "core" ]]; then
+  curl -fsS "http://localhost:${CONNECTOR_SERVICE_PORT:-8094}/health" >/dev/null && ok "Connector service healthy" || warn "Connector service not healthy yet"
+fi
 
 info "Auth smoke test"
 AUTH_TOKEN="$(curl -fsS -X POST "http://localhost:${API_GATEWAY_PORT:-8080}/api/devices/register" \
@@ -82,6 +101,7 @@ Local URLs:
   Module API:   http://localhost:${MODULE_SERVICE_PORT:-8083}
   Research API: http://localhost:${RESEARCH_SERVICE_PORT:-8084}  (run: make up-research)
   Automation:   http://localhost:${AUTOMATION_SERVICE_PORT:-8085}  (run: make up-automation)
+  Connectors:   http://localhost:${CONNECTOR_SERVICE_PORT:-8094}  (run: make up-connectors)
   MinIO:        http://localhost:9001
   NATS monitor: http://localhost:8222
 
@@ -92,4 +112,11 @@ Next:
   TOKEN=$(curl -fsS -X POST http://localhost:${API_GATEWAY_PORT:-8080}/api/devices/register -H 'content-type: application/json' -d '{"device_key":"cli","name":"CLI","kind":"desktop","platform":"linux"}' | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
   curl -H "authorization: Bearer $TOKEN" http://localhost:${API_GATEWAY_PORT:-8080}/api/modules
   curl -H "authorization: Bearer $TOKEN" http://localhost:${API_GATEWAY_PORT:-8080}/api/proxy/sync/api/sync/health
+
+Open onboarding:
+  http://localhost:${WEB_PORT:-9000}/onboarding
 EOF
+
+if [[ "$AUTO_OPEN" == "true" ]]; then
+  if command -v xdg-open >/dev/null 2>&1; then xdg-open "http://localhost:${WEB_PORT:-9000}/onboarding" >/dev/null 2>&1 || true; fi
+fi

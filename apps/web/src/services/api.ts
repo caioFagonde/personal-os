@@ -9,6 +9,7 @@ export const automationUrl = import.meta.env.VITE_AUTOMATION_URL || `${apiUrl}/a
 export const digitalTwinUrl = import.meta.env.VITE_DIGITAL_TWIN_URL || `${apiUrl}/api/proxy/digital-twin`
 export const captureUrl = import.meta.env.VITE_CAPTURE_URL || `${apiUrl}/api/proxy/capture`
 export const studyCompanionUrl = import.meta.env.VITE_STUDY_COMPANION_URL || `${apiUrl}/api/proxy/study-companion`
+export const connectorsUrl = import.meta.env.VITE_CONNECTORS_URL || `${apiUrl}/api/proxy/connectors`
 
 export { deviceKey }
 

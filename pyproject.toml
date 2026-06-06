@@ -17,7 +17,8 @@ testpaths = [
   "services/command-bus/tests",
   "services/module-service/tests",
   "services/research-service/tests",
-  "services/automation-service/tests"
+  "services/automation-service/tests",
+  "services/connector-service/tests"
 ]
 
 [tool.coverage.report]

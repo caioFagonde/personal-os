@@ -11,6 +11,11 @@ import DigitalTwinPage from '../pages/DigitalTwinPage.vue'
 import CapturePage from '../pages/CapturePage.vue'
 import TasksPage from '../pages/TasksPage.vue'
 import StudyCompanionPage from '../pages/StudyCompanionPage.vue'
+import ConnectorsPage from '../pages/ConnectorsPage.vue'
+import OnboardingPage from '../pages/OnboardingPage.vue'
+import BackupRestorePage from '../pages/BackupRestorePage.vue'
+import DevicePairingPage from '../pages/DevicePairingPage.vue'
+import SyncHealthPage from '../pages/SyncHealthPage.vue'
 
 export default [
   { path: '/', component: HomePage },
@@ -25,5 +30,10 @@ export default [
   { path: '/tasks', component: TasksPage },
   { path: '/study-companion', component: StudyCompanionPage },
   { path: '/sync', component: SyncPage },
+  { path: '/sync-health', component: SyncHealthPage },
+  { path: '/connectors', component: ConnectorsPage },
+  { path: '/onboarding', component: OnboardingPage },
+  { path: '/backup-restore', component: BackupRestorePage },
+  { path: '/device-pairing', component: DevicePairingPage },
   { path: '/modules/:id', component: ModulePage, props: true }
 ]

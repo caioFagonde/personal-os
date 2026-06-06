@@ -192,7 +192,7 @@ Phase 9 adds the working-memory layer:
 - `/study-companion` for pasted text, photos/files, analog-to-digital capture, OCR/object-detection hooks, Zettelkasten note creation, learning atoms, and retention scheduling.
 - `capture-service` for task/delegation/outbox workflows.
 - `study-companion-service` for OCR/vision-adapter pipelines and scientific review scheduling.
-%
+
 Run:
 
 ```bash
