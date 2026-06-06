@@ -1,5 +1,7 @@
 -- Phase 8: Digital twin intelligence, ontology, recommendations, and privacy policy.
 
+ALTER TABLE modules ADD COLUMN IF NOT EXISTS storage_tables TEXT[] NOT NULL DEFAULT '{}';
+
 CREATE TABLE IF NOT EXISTS digital_twin_entities (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     profile_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,

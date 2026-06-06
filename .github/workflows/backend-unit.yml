@@ -1,5 +1,8 @@
 name: backend-unit
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 on:
   pull_request:
   push:
@@ -22,7 +25,7 @@ jobs:
           pip install -r requirements.txt pytest pytest-cov
       - name: Unit tests with coverage
         run: |
-          pytest tests -q \
+          PYTHONPATH=. pytest tests -q \
             --cov=app.security \
             --cov-branch \
             --cov-report=term-missing \
@@ -49,7 +52,7 @@ jobs:
           pip install -r requirements.txt pytest pytest-cov
       - name: Unit tests with coverage
         run: |
-          pytest tests -q \
+          PYTHONPATH=. pytest tests -q \
             --cov=app.conflict \
             --cov-branch \
             --cov-report=term-missing \
@@ -76,7 +79,7 @@ jobs:
           pip install -r requirements.txt pytest pytest-cov
       - name: Unit tests with coverage
         run: |
-          pytest tests -q \
+          PYTHONPATH=. pytest tests -q \
             --cov=app.signing \
             --cov-branch \
             --cov-report=term-missing \

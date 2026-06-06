@@ -181,3 +181,22 @@ make test-phase8
 ```
 
 See `docs/phase-8-digital-twin-intelligence.md`.
+
+
+## Phase 9 — Capture, Tasks, Delegation, Study Companion
+
+Phase 9 adds the working-memory layer:
+
+- `/capture` for slash-command quick capture.
+- `/tasks` for task inbox, delegated work, and follow-ups.
+- `/study-companion` for pasted text, photos/files, analog-to-digital capture, OCR/object-detection hooks, Zettelkasten note creation, learning atoms, and retention scheduling.
+- `capture-service` for task/delegation/outbox workflows.
+- `study-companion-service` for OCR/vision-adapter pipelines and scientific review scheduling.
+
+Run:
+
+```bash
+make up-capture
+make up-study-companion
+make test-phase9
+```

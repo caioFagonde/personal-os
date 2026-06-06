@@ -1,0 +1,29 @@
+id: capture
+name: Fast Capture
+version: 0.9.0
+description: Quick capture grammar for tasks, delegation, notes, and operational inbox workflows.
+routes:
+  web: /capture
+  api: /api/capture
+permissions:
+  - capture.read
+  - capture.write
+  - tasks.write
+  - delegation.write
+events:
+  publishes:
+    - capture.created
+    - message.queued
+  subscribes:
+    - note.created
+    - audio.transcribed
+    - analog.capture.completed
+storage:
+  tables:
+    - capture_items
+    - message_outbox
+    - message_deliveries
+    - delegation_rules
+sync:
+  enabled: true
+  strategy: local-first

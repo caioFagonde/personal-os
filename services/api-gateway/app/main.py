@@ -36,6 +36,8 @@ COMMAND_BUS_URL = os.environ.get("COMMAND_BUS_URL", "http://command-bus:8082")
 RESEARCH_SERVICE_URL = os.environ.get("RESEARCH_SERVICE_URL", "http://research-service:8084")
 AUTOMATION_SERVICE_URL = os.environ.get("AUTOMATION_SERVICE_URL", "http://automation-service:8085")
 DIGITAL_TWIN_SERVICE_URL = os.environ.get("DIGITAL_TWIN_SERVICE_URL", "http://digital-twin-service:8086")
+CAPTURE_SERVICE_URL = os.environ.get("CAPTURE_SERVICE_URL", "http://capture-service:8087")
+STUDY_COMPANION_SERVICE_URL = os.environ.get("STUDY_COMPANION_SERVICE_URL", "http://study-companion-service:8088")
 ACCESS_TOKEN_TTL_SECONDS = int(os.environ.get("ACCESS_TOKEN_TTL_SECONDS", "900"))
 REFRESH_TOKEN_TTL_DAYS = int(os.environ.get("REFRESH_TOKEN_TTL_DAYS", "30"))
 DEFAULT_DEVICE_SCOPES = [
@@ -55,6 +57,13 @@ DEFAULT_DEVICE_SCOPES = [
     "digital_twin:read",
     "digital_twin:write",
     "recommendations:write",
+    "capture:read",
+    "capture:write",
+    "tasks:read",
+    "tasks:write",
+    "delegation:write",
+    "study_companion:read",
+    "study_companion:write",
 ]
 
 app = FastAPI(title="Personal OS API Gateway", version="0.7.0")
@@ -488,6 +497,25 @@ async def proxy_digital_twin(path: str, request: Request, principal: Principal =
     else:
         require_scope(principal, "digital_twin:write")
     return await proxy_request(DIGITAL_TWIN_SERVICE_URL, path, request)
+
+
+@app.api_route("/api/proxy/capture/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
+async def proxy_capture(path: str, request: Request, principal: Principal = Depends(active_principal)) -> Response:
+    if request.method == "GET":
+        require_scope(principal, "capture:read")
+    elif "delegations" in path:
+        require_scope(principal, "delegation:write")
+    elif "tasks" in path:
+        require_scope(principal, "tasks:write")
+    else:
+        require_scope(principal, "capture:write")
+    return await proxy_request(CAPTURE_SERVICE_URL, path, request)
+
+
+@app.api_route("/api/proxy/study-companion/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
+async def proxy_study_companion(path: str, request: Request, principal: Principal = Depends(active_principal)) -> Response:
+    require_scope(principal, "study_companion:read" if request.method == "GET" else "study_companion:write")
+    return await proxy_request(STUDY_COMPANION_SERVICE_URL, path, request)
 
 
 async def proxy_request(base_url: str, path: str, request: Request) -> Response:

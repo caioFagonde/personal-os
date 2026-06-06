@@ -1,0 +1,75 @@
+name: phase9-capture-study-companion
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+on:
+  push:
+    paths:
+      - 'services/capture-service/**'
+      - 'services/study-companion-service/**'
+      - 'infra/postgres/migrations/008_phase_9_capture_tasks_study_companion.sql'
+      - 'apps/web/src/pages/CapturePage.vue'
+      - 'apps/web/src/pages/TasksPage.vue'
+      - 'apps/web/src/pages/StudyCompanionPage.vue'
+      - 'tests/test_phase9_scaffold.py'
+      - '.github/workflows/phase9-capture-study-companion.yml'
+  pull_request:
+    paths:
+      - 'services/capture-service/**'
+      - 'services/study-companion-service/**'
+      - 'infra/postgres/migrations/008_phase_9_capture_tasks_study_companion.sql'
+      - 'apps/web/src/pages/CapturePage.vue'
+      - 'apps/web/src/pages/TasksPage.vue'
+      - 'apps/web/src/pages/StudyCompanionPage.vue'
+      - 'tests/test_phase9_scaffold.py'
+
+jobs:
+  capture-service:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r services/capture-service/requirements.txt
+      - run: cd services/capture-service && PYTHONPATH=. python -m pytest tests -q --cov=app.parser --cov=app.delegation --cov=app.tasking --cov-branch --cov-fail-under=96
+
+  study-companion-service:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r services/study-companion-service/requirements.txt
+      - run: cd services/study-companion-service && PYTHONPATH=. python -m pytest tests -q --cov=app.retention --cov=app.analog --cov=app.routines --cov-branch --cov-fail-under=96
+
+  scaffold-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pyyaml pytest
+      - run: python -m pytest tests/test_phase9_scaffold.py -q
+      - run: |
+          python - <<'PY'
+          import yaml
+          with open('docker-compose.yml') as f:
+              yaml.safe_load(f)
+          PY
+
+  frontend-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: pnpm install --frozen-lockfile=false
+      - run: pnpm --dir apps/web test

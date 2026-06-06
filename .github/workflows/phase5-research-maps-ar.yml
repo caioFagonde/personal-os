@@ -1,5 +1,8 @@
 name: phase5-research-maps-ar
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 on:
   pull_request:
   push:
@@ -22,7 +25,7 @@ jobs:
           pip install -r requirements.txt pytest pytest-cov
       - name: Unit tests with coverage
         run: |
-          pytest tests -q \
+          PYTHONPATH=. pytest tests -q \
             --cov=app.source_policy \
             --cov=app.pdf_ingest \
             --cov=app.acquisition \
@@ -51,7 +54,7 @@ jobs:
           pip install -r requirements.txt pytest pytest-cov
       - name: Unit tests with coverage
         run: |
-          pytest tests/test_ar_math.py -q \
+          PYTHONPATH=. pytest tests/test_ar_math.py -q \
             --cov=app.ar_math \
             --cov-branch \
             --cov-report=term-missing \

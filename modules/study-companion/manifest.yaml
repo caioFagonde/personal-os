@@ -1,0 +1,38 @@
+id: study-companion
+name: Study Companion
+version: 0.9.0
+description: Analog-to-digital capture, OCR/vision hooks, learning atoms, retention scheduling, lookup cards, and Zettelkasten linkage.
+routes:
+  web: /study-companion
+  api: /api/study-companion
+permissions:
+  - files.read
+  - files.write
+  - camera.capture
+  - microphone.capture
+  - notes.write
+  - study.write
+  - notifications.send
+  - research.search
+events:
+  publishes:
+    - analog.capture.completed
+    - learning.atom.created
+    - review.due
+    - lookup.card.created
+  subscribes:
+    - file.ingested
+    - note.created
+    - location.changed
+    - ar.anchor.observed
+storage:
+  tables:
+    - analog_captures
+    - vision_detections
+    - ocr_blocks
+    - learning_atoms
+    - review_events
+    - lookup_cards
+sync:
+  enabled: true
+  strategy: local-first

@@ -1,6 +1,9 @@
 export const navigationModules = [
   { id: 'home', label: 'Command', path: '/', icon: 'mdi-view-dashboard-outline', group: 'Core' },
+  { id: 'capture', label: 'Capture', path: '/capture', icon: 'mdi-lightning-bolt-outline', group: 'Core' },
+  { id: 'tasks', label: 'Tasks', path: '/tasks', icon: 'mdi-checkbox-marked-circle-auto-outline', group: 'Core' },
   { id: 'study', label: 'Study', path: '/study', icon: 'mdi-school-outline', group: 'Growth' },
+  { id: 'study-companion', label: 'Companion', path: '/study-companion', icon: 'mdi-camera-iris', group: 'Growth' },
   { id: 'zettelkasten', label: 'Zettel', path: '/zettelkasten', icon: 'mdi-graph-outline', group: 'Knowledge' },
   { id: 'research', label: 'Research', path: '/research', icon: 'mdi-file-search-outline', group: 'Knowledge' },
   { id: 'geospatial', label: 'Maps', path: '/geospatial', icon: 'mdi-map-search-outline', group: 'Field' },

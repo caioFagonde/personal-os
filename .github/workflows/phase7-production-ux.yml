@@ -1,5 +1,8 @@
 name: phase7-production-ux
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 on:
   push:
     branches: [main]
@@ -20,7 +23,7 @@ jobs:
       - name: Run Phase 7 backend coverage gates
         run: |
           cd services/api-gateway
-          python -m pytest tests/test_service_identity.py tests/test_observability.py tests/test_release.py -q \
+          python -m PYTHONPATH=. pytest tests/test_service_identity.py tests/test_observability.py tests/test_release.py -q \
             --cov=app.service_identity --cov=app.observability --cov=app.release --cov-branch --cov-fail-under=96
 
   design-system-and-web-ux:
@@ -32,8 +35,7 @@ jobs:
           version: 9.12.0
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: pnpm
+          node-version: '24'
       - run: pnpm install --frozen-lockfile=false
       - name: Test web UX logic and design tokens
         run: |
@@ -49,8 +51,7 @@ jobs:
           version: 9.12.0
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: pnpm
+          node-version: '24'
       - run: pnpm install --frozen-lockfile=false
       - name: Validate mobile shell policy
         run: |
@@ -63,7 +64,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - name: Run Tauri Rust unit tests
-        run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
+        run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --lib
 
   observability-compose-contract:
     runs-on: ubuntu-latest

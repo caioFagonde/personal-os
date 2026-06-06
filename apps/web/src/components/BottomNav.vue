@@ -7,5 +7,5 @@
 </template>
 <script setup lang="ts">
 import { navigationModules } from '../design/tokens'
-const items = navigationModules.filter((m) => ['home', 'digital-twin', 'study', 'research', 'automation'].includes(m.id))
+const items = navigationModules.filter((m) => ['home', 'capture', 'tasks', 'study-companion', 'digital-twin'].includes(m.id))
 </script>

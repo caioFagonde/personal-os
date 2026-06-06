@@ -8,6 +8,9 @@ import ResearchPage from '../pages/ResearchPage.vue'
 import ARMemoryPage from '../pages/ARMemoryPage.vue'
 import AutomationPage from '../pages/AutomationPage.vue'
 import DigitalTwinPage from '../pages/DigitalTwinPage.vue'
+import CapturePage from '../pages/CapturePage.vue'
+import TasksPage from '../pages/TasksPage.vue'
+import StudyCompanionPage from '../pages/StudyCompanionPage.vue'
 
 export default [
   { path: '/', component: HomePage },
@@ -18,6 +21,9 @@ export default [
   { path: '/ar-memory', component: ARMemoryPage },
   { path: '/automation', component: AutomationPage },
   { path: '/digital-twin', component: DigitalTwinPage },
+  { path: '/capture', component: CapturePage },
+  { path: '/tasks', component: TasksPage },
+  { path: '/study-companion', component: StudyCompanionPage },
   { path: '/sync', component: SyncPage },
   { path: '/modules/:id', component: ModulePage, props: true }
 ]

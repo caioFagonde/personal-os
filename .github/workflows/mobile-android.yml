@@ -1,5 +1,8 @@
 name: mobile-android
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 on:
   pull_request:
   push:
@@ -16,8 +19,7 @@ jobs:
           version: 9.12.0
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: pnpm
+          node-version: '24'
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

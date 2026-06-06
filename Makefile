@@ -1,7 +1,7 @@
 SHELL := /usr/bin/env bash
 COMPOSE := docker compose --env-file .env
 
-.PHONY: install doctor up down up-research up-maps up-automation up-digital-twin logs backup restore mobile desktop test test-backend test-phase5 test-phase6 test-phase8 test-frontend test-mobile test-desktop lint format nuke migrate seed
+.PHONY: install doctor up down up-research up-maps up-automation up-digital-twin up-capture up-study-companion logs backup restore mobile desktop test test-backend test-phase5 test-phase6 test-phase8 test-phase9 test-frontend test-mobile test-desktop lint format nuke migrate seed
 
 install:
 	./scripts/bootstrap.sh
@@ -27,6 +27,12 @@ up-automation:
 up-digital-twin:
 	$(COMPOSE) --profile core --profile ai up -d --build digital-twin-service
 
+up-capture:
+	$(COMPOSE) --profile automation --profile apps up -d --build capture-service
+
+up-study-companion:
+	$(COMPOSE) --profile ai --profile research --profile apps up -d --build study-companion-service
+
 logs:
 	$(COMPOSE) logs -f --tail=200
 
@@ -48,7 +54,7 @@ mobile:
 desktop:
 	./scripts/deploy-desktop.sh
 
-test: test-backend test-phase5 test-phase6 test-phase8
+test: test-backend test-phase5 test-phase6 test-phase8 test-phase9
 	python -m pytest tests
 
 
@@ -68,6 +74,12 @@ test-phase6:
 test-phase8:
 	cd services/digital-twin-service && python -m pytest tests -q --cov=app.ontology --cov=app.privacy --cov=app.timeline --cov=app.recommender --cov=app.evaluation --cov-branch --cov-fail-under=96
 	python -m pytest tests/test_phase8_scaffold.py -q
+
+
+test-phase9:
+	cd services/capture-service && python -m pytest tests -q --cov=app.parser --cov=app.delegation --cov=app.tasking --cov-branch --cov-fail-under=96
+	cd services/study-companion-service && python -m pytest tests -q --cov=app.retention --cov=app.analog --cov=app.routines --cov-branch --cov-fail-under=96
+	python -m pytest tests/test_phase9_scaffold.py -q
 
 test-frontend:
 	pnpm --dir apps/web test
@@ -112,3 +124,6 @@ release-android:
 	pnpm --dir apps/mobile preflight
 	pnpm --dir apps/web build
 	pnpm --dir apps/mobile cap:sync
+
+test-ci-stabilization:
+	python -m pytest tests/test_ci_stabilization.py -q

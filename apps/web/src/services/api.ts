@@ -7,6 +7,8 @@ export const moduleUrl = import.meta.env.VITE_MODULE_API_URL || `${apiUrl}/api/p
 export const researchUrl = import.meta.env.VITE_RESEARCH_URL || `${apiUrl}/api/proxy/research`
 export const automationUrl = import.meta.env.VITE_AUTOMATION_URL || `${apiUrl}/api/proxy/automation`
 export const digitalTwinUrl = import.meta.env.VITE_DIGITAL_TWIN_URL || `${apiUrl}/api/proxy/digital-twin`
+export const captureUrl = import.meta.env.VITE_CAPTURE_URL || `${apiUrl}/api/proxy/capture`
+export const studyCompanionUrl = import.meta.env.VITE_STUDY_COMPANION_URL || `${apiUrl}/api/proxy/study-companion`
 
 export { deviceKey }
 

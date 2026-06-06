@@ -47,7 +47,7 @@ def test_mobile_and_desktop_have_native_policy_tests():
     assert (ROOT / 'apps/mobile/src/runtime-policy.ts').exists()
     assert (ROOT / 'apps/mobile/tests/runtime-policy.test.ts').exists()
     assert 'validate_deep_link' in read('apps/desktop/src-tauri/src/main.rs')
-    assert 'javascript:alert(1)' in read('apps/desktop/src-tauri/src/main.rs')
+    assert 'javascript:alert(1)' in read('apps/desktop/src-tauri/src/lib.rs')
 
 
 def test_phase7_workflows_are_split_and_actionable():

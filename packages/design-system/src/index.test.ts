@@ -4,7 +4,7 @@ import { colors, contrastMode, fluidType } from './index'
 describe('design system', () => {
   it('exposes stable dark-premium tokens', () => {
     expect(colors.background).toBe('#070a12')
-    expect(colors.cyan).toMatch(/^#/)  
+    expect(colors.cyan).toMatch(/^#/)
   })
   it('creates bounded fluid type rules', () => {
     expect(fluidType(16, 32)).toContain('clamp(16px')
