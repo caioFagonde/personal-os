@@ -20,7 +20,12 @@
     "certify:local": "./scripts/certify/full-local.sh",
     "certify:android": "./scripts/certify/physical-android.sh",
     "release:android:signed": "./scripts/release/build-android-signed.sh",
-    "release:desktop:signed": "./scripts/release/build-tauri-signed.sh"
+    "release:desktop:signed": "./scripts/release/build-tauri-signed.sh",
+    "test:phase13": "make test-phase13",
+    "certify:live-stack": "./scripts/certify/live-stack-e2e.sh",
+    "certify:physical-sync": "./scripts/certify/physical-sync.sh",
+    "certify:model-runtime": "./scripts/certify/model-runtime.sh",
+    "release:publish": "./scripts/release/publish-github-release.sh"
   },
   "devDependencies": {
     "prettier": "^3.3.3",

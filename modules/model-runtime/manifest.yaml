@@ -1,0 +1,21 @@
+id: model-runtime
+name: Model Runtime
+version: 0.13.0
+description: Certified OCR, object detection, transcription, and multimodal runtime bridge.
+routes:
+  web: /model-runtime
+  api: /api/model-runtime
+permissions:
+  - model_runtime:read
+  - model_runtime:write
+events:
+  publishes:
+    - model-runtime.asset.processed
+  subscribes:
+    - analog.capture.created
+storage:
+  tables:
+    - model_runtime_invocations
+sync:
+  enabled: true
+  strategy: local-first

@@ -170,3 +170,27 @@ release-tauri-signed:
 
 verify-release-artifacts:
 	./scripts/release/verify-release-artifacts.sh
+
+.PHONY: test-phase13 certify-live-stack certify-physical-sync certify-model-runtime publish-release release-readiness up-model-runtime
+
+up-model-runtime:
+	$(COMPOSE) --profile ai --profile apps up -d --build model-runtime
+
+test-phase13:
+	cd services/model-runtime && python -m pytest tests -q --cov=app.runtime --cov-branch --cov-fail-under=96
+	python -m pytest tests/test_phase13_scaffold.py -q
+
+certify-live-stack:
+	./scripts/certify/live-stack-e2e.sh
+
+certify-physical-sync:
+	./scripts/certify/physical-sync.sh
+
+certify-model-runtime:
+	./scripts/certify/model-runtime.sh
+
+release-readiness:
+	./scripts/certify/release-readiness.py
+
+publish-release:
+	./scripts/release/publish-github-release.sh

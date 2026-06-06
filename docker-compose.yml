@@ -74,8 +74,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER must be set}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD must be set}
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "${MINIO_API_PORT:-9010}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - minio_data:/data
     healthcheck:
@@ -103,6 +103,7 @@ services:
       CAPTURE_SERVICE_URL: http://capture-service:8087
       STUDY_COMPANION_SERVICE_URL: http://study-companion-service:8088
       CONNECTOR_SERVICE_URL: http://connector-service:8094
+      MODEL_RUNTIME_SERVICE_URL: http://model-runtime:8095
       AUTH_REQUIRED: ${AUTH_REQUIRED:-false}
       ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS:-900}
       REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-30}
@@ -373,6 +374,30 @@ services:
       <<: *health
     networks: [personal_os_net]
 
+
+  model-runtime:
+    build:
+      context: ./services/model-runtime
+    container_name: personal-os-model-runtime
+    profiles: ["ai", "research", "apps", "full"]
+    <<: *restart
+    env_file: .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      OCR_PROVIDER: ${OCR_PROVIDER:-heuristic}
+      VISION_PROVIDER: ${VISION_PROVIDER:-heuristic}
+      AUDIO_PROVIDER: ${AUDIO_PROVIDER:-heuristic}
+      MODEL_RUNTIME_MAX_BYTES: ${MODEL_RUNTIME_MAX_BYTES:-52428800}
+    ports:
+      - "${MODEL_RUNTIME_SERVICE_PORT:-8095}:8095"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8095/health"]
+      <<: *health
+    networks: [personal_os_net]
+
   web:
     build:
       context: ./apps/web
@@ -390,6 +415,7 @@ services:
       VITE_CAPTURE_URL: ${VITE_CAPTURE_URL:-http://localhost:8080/api/proxy/capture}
       VITE_STUDY_COMPANION_URL: ${VITE_STUDY_COMPANION_URL:-http://localhost:8080/api/proxy/study-companion}
       VITE_CONNECTORS_URL: ${VITE_CONNECTORS_URL:-http://localhost:8080/api/proxy/connectors}
+      VITE_MODEL_RUNTIME_URL: ${VITE_MODEL_RUNTIME_URL:-http://localhost:8080/api/proxy/model-runtime}
     ports:
       - "${WEB_PORT:-9000}:9000"
     depends_on:

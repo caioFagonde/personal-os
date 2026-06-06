@@ -74,6 +74,7 @@ curl -fsS "http://localhost:${COMMAND_BUS_PORT:-8082}/health" >/dev/null && ok "
 curl -fsS "http://localhost:${MODULE_SERVICE_PORT:-8083}/health" >/dev/null && ok "Module service healthy" || warn "Module service not healthy yet"
 if [[ "$MODE" != "core" ]]; then
   curl -fsS "http://localhost:${CONNECTOR_SERVICE_PORT:-8094}/health" >/dev/null && ok "Connector service healthy" || warn "Connector service not healthy yet"
+  curl -fsS "http://localhost:${MODEL_RUNTIME_SERVICE_PORT:-8095}/health" >/dev/null && ok "Model runtime healthy" || warn "Model runtime not healthy yet"
 fi
 
 info "Auth smoke test"
@@ -104,6 +105,7 @@ Local URLs:
   Research API: http://localhost:${RESEARCH_SERVICE_PORT:-8084}  (run: make up-research)
   Automation:   http://localhost:${AUTOMATION_SERVICE_PORT:-8085}  (run: make up-automation)
   Connectors:   http://localhost:${CONNECTOR_SERVICE_PORT:-8094}  (run: make up-connectors)
+  Model runtime:http://localhost:${MODEL_RUNTIME_SERVICE_PORT:-8095}  (run: make up-model-runtime)
   MinIO:        http://localhost:9001
   NATS monitor: http://localhost:8222
 
@@ -135,8 +137,10 @@ fi
 
 
 if [[ "$CERTIFY_AFTER_BOOTSTRAP" == "true" ]]; then
-  info "Running Phase 12 local certification"
-  ./scripts/certify/full-local.sh || warn "Phase 12 certification reported failures; inspect output and /certification"
+  info "Running Phase 13 local certification"
+  ./scripts/certify/full-local.sh || warn "Base certification reported failures; inspect output and /certification"
+  ./scripts/certify/model-runtime.sh || warn "Model runtime certification failed; inspect /model-runtime"
+  ./scripts/certify/release-readiness.py || warn "Initial version readiness gate failed; inspect /initial-readiness"
 fi
 
 if [[ "$AUTO_OPEN" == "true" ]]; then

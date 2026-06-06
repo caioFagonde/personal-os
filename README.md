@@ -200,3 +200,17 @@ make up-capture
 make up-study-companion
 make test-phase9
 ```
+
+
+## Phase 13 certification
+
+Run the final initial-version certification layer:
+
+```bash
+make test-phase13
+make certify-model-runtime
+make certify-live-stack
+make release-readiness
+```
+
+Open `/model-runtime`, `/live-stack`, and `/initial-readiness` in the web UI. See `docs/phase-13-live-stack-model-release.md`.

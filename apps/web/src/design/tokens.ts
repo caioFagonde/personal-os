@@ -19,7 +19,10 @@ export const navigationModules = [
   { id: 'backup-restore', label: 'Backup', path: '/backup-restore', icon: 'mdi-cloud-upload-outline', group: 'Ops' },
   { id: 'device-pairing', label: 'Pair Device', path: '/device-pairing', icon: 'mdi-qrcode-scan', group: 'Ops' },
   { id: 'certification', label: 'Certification', path: '/certification', icon: 'mdi-shield-check-outline', group: 'Ops' },
-  { id: 'release-center', label: 'Release', path: '/release-center', icon: 'mdi-package-variant-closed-check', group: 'Ops' }
+  { id: 'release-center', label: 'Release', path: '/release-center', icon: 'mdi-package-variant-closed-check', group: 'Ops' },
+  { id: 'model-runtime', label: 'Models', path: '/model-runtime', icon: 'mdi-brain', group: 'Ops' },
+  { id: 'live-stack', label: 'Live Stack', path: '/live-stack', icon: 'mdi-server-network', group: 'Ops' },
+  { id: 'initial-readiness', label: 'Readiness', path: '/initial-readiness', icon: 'mdi-flag-checkered', group: 'Ops' }
 ] as const
 
 export const statusTone = {

@@ -21,6 +21,9 @@ import ConflictResolutionPage from '../pages/ConflictResolutionPage.vue'
 import OfflineQueuePage from '../pages/OfflineQueuePage.vue'
 import CertificationPage from '../pages/CertificationPage.vue'
 import ReleaseCenterPage from '../pages/ReleaseCenterPage.vue'
+import ModelRuntimePage from '../pages/ModelRuntimePage.vue'
+import LiveStackPage from '../pages/LiveStackPage.vue'
+import InitialVersionReadinessPage from '../pages/InitialVersionReadinessPage.vue'
 
 export default [
   { path: '/', component: HomePage },
@@ -45,5 +48,8 @@ export default [
   { path: '/offline-queue', component: OfflineQueuePage },
   { path: '/certification', component: CertificationPage },
   { path: '/release-center', component: ReleaseCenterPage },
+  { path: '/model-runtime', component: ModelRuntimePage },
+  { path: '/live-stack', component: LiveStackPage },
+  { path: '/initial-readiness', component: InitialVersionReadinessPage },
   { path: '/modules/:id', component: ModulePage, props: true }
 ]
