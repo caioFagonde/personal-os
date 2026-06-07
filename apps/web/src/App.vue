@@ -22,7 +22,11 @@
     <q-page-container :style="safeArea">
       <div class="page-shell">
         <SystemStatusRibbon :status="status" :online="online" :pending-mutations="pendingMutations" :conflicts="conflicts" />
-        <router-view />
+        <router-view v-slot="{ Component }">
+          <transition name="page-fade" mode="out-in">
+            <component :is="Component" />
+          </transition>
+        </router-view>
       </div>
     </q-page-container>
 
@@ -48,7 +52,7 @@ const pendingMutations = ref(0)
 const conflicts = ref(0)
 const status = computed(() => (online.value ? 'ok' : 'offline'))
 const safeArea = safeAreaStyle(platform)
-function openPalette() { palette.value?.open && (palette.value.open = true) }
+function openPalette() { if (palette.value) palette.value.open = true }
 function toggleDark() { Dark.set(!Dark.isActive) }
 onMounted(() => {
   window.addEventListener('online', () => { online.value = true })

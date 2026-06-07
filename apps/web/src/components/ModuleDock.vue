@@ -9,9 +9,18 @@
         </q-item>
       </q-list>
     </div>
+    <q-expansion-item icon="mdi-dots-horizontal" label="More" header-class="module-dock__heading" dense>
+      <q-list dense>
+        <q-item v-for="item in secondary" :key="item.id" clickable :to="item.path" exact class="module-dock__item">
+          <q-item-section avatar><q-icon :name="item.icon" /></q-item-section>
+          <q-item-section>{{ item.label }}</q-item-section>
+        </q-item>
+      </q-list>
+    </q-expansion-item>
   </nav>
 </template>
 <script setup lang="ts">
-import { groupNavigation } from '../design/tokens'
+import { groupNavigation, secondaryModules } from '../design/tokens'
 const grouped = groupNavigation()
+const secondary = secondaryModules
 </script>

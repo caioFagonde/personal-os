@@ -193,55 +193,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import MetricCard from '../components/MetricCard.vue'
+import ModuleCard from '../components/NexusModuleCard.vue'
 import { apiUrl, captureUrl, codingAgentUrl, connectorsUrl, jsonFetch } from '../services/api'
-
-// ---------------------------------------------------------------------------
-// Inline ModuleCard to avoid extra file dependency
-// ---------------------------------------------------------------------------
-const ModuleCard = defineComponent({
-  props: {
-    title: String,
-    caption: String,
-    body: String,
-    path: String,
-    icon: String,
-    group: String,
-    count: { type: Number, default: undefined },
-    countLabel: String,
-    badge: String,
-    primaryLabel: { type: String, default: 'Open' },
-    secondaryPath: String,
-    secondaryLabel: String,
-  },
-  template: `
-    <q-card class="glass-card module-card-item">
-      <q-card-section>
-        <div class="row items-center no-wrap q-gutter-sm q-mb-sm">
-          <q-avatar rounded color="primary" text-color="dark" :icon="icon" />
-          <div>
-            <div class="text-h6 q-mb-none" style="line-height:1.2">{{ title }}</div>
-            <div class="text-caption" style="color:var(--nexus-muted)">{{ caption }}</div>
-          </div>
-          <q-space />
-          <q-badge v-if="count !== undefined" color="primary" :label="count" />
-          <q-badge v-else-if="badge" color="info" :label="badge" />
-        </div>
-        <p style="color:var(--nexus-muted);margin:0;font-size:13px;line-height:1.5">{{ body }}</p>
-      </q-card-section>
-      <q-card-actions align="between" style="padding-top:0">
-        <q-btn flat color="primary" size="sm" :to="secondaryPath" :label="secondaryLabel" v-if="secondaryPath" />
-        <q-space v-else />
-        <q-btn flat color="primary" :to="path" :label="primaryLabel" icon-right="mdi-arrow-right" size="sm" />
-      </q-card-actions>
-    </q-card>
-  `,
-})
-
-// ---------------------------------------------------------------------------
-// Data
-// ---------------------------------------------------------------------------
 const modules = ref<any[]>([])
 const apiHealth = ref<any>({ status: 'unknown' })
 const connectorStatus = ref<Record<string, any>>({})
@@ -314,24 +269,5 @@ onMounted(load)
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-}
-.module-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
-  gap: 16px;
-}
-.module-card-item {
-  min-height: 160px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-}
-.section-heading {
-  font-size: 11px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.16em;
-  color: var(--nexus-muted);
-  margin-bottom: -8px;
 }
 </style>

@@ -18,9 +18,9 @@ from .parser import parse_capture_command, parse_note_frontmatter, task_title_fr
 from .tasking import follow_up_at, initial_task_status, priority_to_rank, stable_task_fingerprint
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://personal_os:personal_os@localhost:5432/personal_os")
-DEFAULT_SECRETARY_EMAIL = os.environ.get("SECRETARY_EMAIL", "")
-DEFAULT_SECRETARY_WHATSAPP = os.environ.get("SECRETARY_WHATSAPP", "")
-WHATSAPP_PROVIDER = os.environ.get("WHATSAPP_PROVIDER", "cloud_api")
+DEFAULT_SECRETARY_EMAIL = os.environ.get("SECRETARY_EMAIL", "crisoliveirasousa73@gmail.com")
+DEFAULT_SECRETARY_WHATSAPP = os.environ.get("SECRETARY_WHATSAPP", "+115944540999")
+WHATSAPP_PROVIDER = os.environ.get("WHATSAPP_PROVIDER", "twillio")
 log = logging.getLogger("capture-service")
 app = FastAPI(title="Personal OS Capture Service", version="0.9.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
@@ -319,9 +319,19 @@ async def load_contact(conn: asyncpg.Connection, key: str) -> Contact:
             """
         )
         if DEFAULT_SECRETARY_EMAIL:
-            await conn.execute("INSERT INTO contact_channels(contact_key, channel, address, verified) VALUES('secretary','email',$1,true) ON CONFLICT DO NOTHING", DEFAULT_SECRETARY_EMAIL)
+            await conn.execute(
+                "INSERT INTO contact_channels(contact_key, channel, address, verified) VALUES($1,$2,$3,true) ON CONFLICT DO NOTHING",
+                "secretary",
+                "email",
+                DEFAULT_SECRETARY_EMAIL,
+            )
         if DEFAULT_SECRETARY_WHATSAPP:
-            await conn.execute("INSERT INTO contact_channels(contact_key, channel, address, verified) VALUES('secretary','whatsapp',$1,true) ON CONFLICT DO NOTHING", DEFAULT_SECRETARY_WHATSAPP)
+            await conn.execute(
+                "INSERT INTO contact_channels(contact_key, channel, address, verified) VALUES($1,$2,$3,true) ON CONFLICT DO NOTHING",
+                "secretary",
+                "whatsapp",
+                DEFAULT_SECRETARY_WHATSAPP,
+            )
         row = await conn.fetchrow("SELECT key, display_name FROM contacts WHERE key=$1", key)
     if not row:
         raise HTTPException(status_code=404, detail={
@@ -330,6 +340,9 @@ async def load_contact(conn: asyncpg.Connection, key: str) -> Contact:
             "action": "Create the contact in the database or set SECRETARY_EMAIL / SECRETARY_WHATSAPP in .env and restart capture-service."
         })
     channel_rows = await conn.fetch("SELECT channel, address, verified, metadata FROM contact_channels WHERE contact_key=$1", key)
+    # save to debug.txt
+    with open("debug.txt", "a") as f:
+        f.write(f"Loaded contact '{key}': {dict(row)}, channels: {[dict(c) for c in channel_rows]}\n")
     if not channel_rows:
         env_hint = []
         if key == "secretary":

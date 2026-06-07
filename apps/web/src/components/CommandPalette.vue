@@ -22,14 +22,14 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { navigationModules } from '../design/tokens'
+import { allModules } from '../design/tokens'
 const router = useRouter()
 const open = ref(false)
 const query = ref('')
 const filtered = computed(() => {
   const q = query.value.toLowerCase().trim()
-  if (!q) return navigationModules
-  return navigationModules.filter((m) => `${m.label} ${m.group} ${m.path}`.toLowerCase().includes(q))
+  if (!q) return allModules
+  return allModules.filter((m) => `${m.label} ${m.group} ${m.path}`.toLowerCase().includes(q))
 })
 function go(path: string) { open.value = false; query.value = ''; router.push(path) }
 function runFirst() { if (filtered.value[0]) go(filtered.value[0].path) }

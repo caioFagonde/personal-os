@@ -1,97 +1,137 @@
 <template>
-  <q-page padding>
-    <div class="row items-center q-col-gutter-md">
-      <div class="col-12 col-md-8">
-        <h1>AR Memory Palace</h1>
-        <p>Create spatial anchors, project device-orientation reticle taps, and link anchors to notes or geospatial memories.</p>
-      </div>
-      <div class="col-12 col-md-4 text-right">
-        <q-btn color="primary" label="Refresh" @click="load" />
-      </div>
-    </div>
+  <q-page class="column q-gutter-lg">
+    <NexusPageHero eyebrow="Field" title="AR Memory Palace" subtitle="Create spatial anchors, project device-orientation reticle taps, and link anchors to notes or geospatial memories.">
+      <template #actions>
+        <q-btn color="primary" icon="mdi-refresh" label="Refresh" :loading="loading" @click="load" />
+      </template>
+    </NexusPageHero>
+
+    <q-banner v-if="error" class="bg-negative text-white" rounded>
+      <template #avatar><q-icon name="mdi-alert-circle-outline" /></template>
+      {{ error }}
+      <template #action><q-btn flat color="white" label="Dismiss" @click="error = ''" /></template>
+    </q-banner>
 
     <div class="row q-col-gutter-md">
       <div class="col-12 col-md-6">
-        <q-card bordered flat>
+        <q-card class="glass-card">
           <q-card-section>
-            <div class="text-h6">Create anchor</div>
-            <q-input v-model="form.title" label="Title" dense outlined />
+            <div class="text-h6 q-mb-sm">Create anchor</div>
+            <q-input v-model="form.title" outlined label="Title" />
             <div class="row q-col-gutter-sm q-mt-sm">
-              <div class="col"><q-input v-model.number="form.local_x" type="number" label="X" dense outlined /></div>
-              <div class="col"><q-input v-model.number="form.local_y" type="number" label="Y" dense outlined /></div>
-              <div class="col"><q-input v-model.number="form.local_z" type="number" label="Z" dense outlined /></div>
+              <div class="col"><q-input v-model.number="form.local_x" outlined type="number" label="X" /></div>
+              <div class="col"><q-input v-model.number="form.local_y" outlined type="number" label="Y" /></div>
+              <div class="col"><q-input v-model.number="form.local_z" outlined type="number" label="Z" /></div>
             </div>
-            <q-input v-model="form.reference_marker" label="Reference marker" dense outlined class="q-mt-sm" />
+            <q-input v-model="form.reference_marker" outlined label="Reference marker" class="q-mt-sm" />
           </q-card-section>
           <q-card-actions>
-            <q-btn color="primary" label="Create" @click="create" />
+            <q-btn color="primary" unelevated label="Create" icon="mdi-plus" :loading="creatingAnchor" @click="create" />
           </q-card-actions>
         </q-card>
       </div>
 
       <div class="col-12 col-md-6">
-        <q-card bordered flat>
+        <q-card class="glass-card">
           <q-card-section>
-            <div class="text-h6">Projection utility</div>
+            <div class="text-h6 q-mb-sm">Projection utility</div>
             <div class="row q-col-gutter-sm">
-              <div class="col"><q-input v-model.number="projection.alpha" type="number" label="α yaw" dense outlined /></div>
-              <div class="col"><q-input v-model.number="projection.beta" type="number" label="β pitch" dense outlined /></div>
-              <div class="col"><q-input v-model.number="projection.gamma" type="number" label="γ roll" dense outlined /></div>
-              <div class="col"><q-input v-model.number="projection.distance_m" type="number" label="m" dense outlined /></div>
+              <div class="col"><q-input v-model.number="projection.alpha" outlined type="number" label="a yaw" /></div>
+              <div class="col"><q-input v-model.number="projection.beta" outlined type="number" label="b pitch" /></div>
+              <div class="col"><q-input v-model.number="projection.gamma" outlined type="number" label="g roll" /></div>
+              <div class="col"><q-input v-model.number="projection.distance_m" outlined type="number" label="m" /></div>
             </div>
-            <pre v-if="projected">{{ projected }}</pre>
+            <pre v-if="projected" class="code-block q-mt-sm">{{ JSON.stringify(projected, null, 2) }}</pre>
           </q-card-section>
           <q-card-actions>
-            <q-btn color="secondary" label="Project" @click="project" />
-            <q-btn flat label="Use result" @click="useProjected" :disable="!projected" />
+            <q-btn color="secondary" unelevated label="Project" @click="project" />
+            <q-btn flat color="primary" label="Use result" @click="useProjected" :disable="!projected" />
           </q-card-actions>
         </q-card>
       </div>
     </div>
 
-    <q-banner v-if="error" class="bg-negative text-white q-mt-md">{{ error }}</q-banner>
-
-    <h2 class="q-mt-xl">Anchors</h2>
-    <q-list bordered separator>
-      <q-item v-for="a in anchors" :key="a.id">
-        <q-item-section>
-          <q-item-label>{{ a.title }}</q-item-label>
-          <q-item-label caption>{{ a.anchor_type }} · local({{ a.local_x }}, {{ a.local_y }}, {{ a.local_z }}) · marker {{ a.reference_marker || 'none' }}</q-item-label>
-        </q-item-section>
-      </q-item>
-    </q-list>
+    <q-card class="glass-card">
+      <q-card-section>
+        <div class="text-h6 q-mb-sm">Anchors</div>
+      </q-card-section>
+      <q-list v-if="anchors.length" separator>
+        <q-item v-for="a in anchors" :key="a.id">
+          <q-item-section avatar>
+            <q-icon name="mdi-cube-scan" />
+          </q-item-section>
+          <q-item-section>
+            <q-item-label>{{ a.title }}</q-item-label>
+            <q-item-label caption>{{ a.anchor_type }} · local({{ a.local_x }}, {{ a.local_y }}, {{ a.local_z }}) · marker {{ a.reference_marker || 'none' }}</q-item-label>
+          </q-item-section>
+        </q-item>
+      </q-list>
+      <NexusEmptyState v-else icon="mdi-cube-scan" message="No anchors yet." hint="Create a spatial anchor above." />
+    </q-card>
   </q-page>
 </template>
-
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import NexusPageHero from '../components/NexusPageHero.vue'
+import NexusEmptyState from '../components/NexusEmptyState.vue'
 import { jsonFetch, moduleUrl } from '../services/api'
 
 const anchors = ref<any[]>([])
 const error = ref('')
+const loading = ref(false)
+const creatingAnchor = ref(false)
 const form = ref({ title: '', anchor_type: 'note', local_x: 0, local_y: 0, local_z: -2, reference_marker: '' })
 const projection = ref({ alpha: 0, beta: 0, gamma: 0, distance_m: 2 })
 const projected = ref<any>(null)
 
 async function load() {
-  try { anchors.value = await jsonFetch<any[]>(`${moduleUrl}/api/ar/anchors`) } catch (e: any) { error.value = e.message }
-}
-async function create() {
+  loading.value = true
   error.value = ''
   try {
-    await jsonFetch<any>(`${moduleUrl}/api/ar/anchors`, { method: 'POST', body: JSON.stringify(form.value) })
+    anchors.value = await jsonFetch<any[]>(`${moduleUrl}/api/ar/anchors`)
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : String(err)
+  } finally {
+    loading.value = false
+  }
+}
+
+async function create() {
+  if (!form.value.title.trim()) return
+  creatingAnchor.value = true
+  error.value = ''
+  try {
+    await jsonFetch<any>(`${moduleUrl}/api/ar/anchors`, {
+      method: 'POST',
+      body: JSON.stringify(form.value),
+    })
     form.value.title = ''
     await load()
-  } catch (e: any) { error.value = e.message }
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : String(err)
+  } finally {
+    creatingAnchor.value = false
+  }
 }
+
 async function project() {
-  try { projected.value = await jsonFetch<any>(`${moduleUrl}/api/ar/project`, { method: 'POST', body: JSON.stringify(projection.value) }) } catch (e: any) { error.value = e.message }
+  error.value = ''
+  try {
+    projected.value = await jsonFetch<any>(`${moduleUrl}/api/ar/project`, {
+      method: 'POST',
+      body: JSON.stringify(projection.value),
+    })
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : String(err)
+  }
 }
+
 function useProjected() {
   if (!projected.value) return
   form.value.local_x = projected.value.local_x
   form.value.local_y = projected.value.local_y
   form.value.local_z = projected.value.local_z
 }
+
 onMounted(load)
 </script>

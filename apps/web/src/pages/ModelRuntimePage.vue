@@ -1,65 +1,81 @@
 <template>
-  <q-page class="q-pa-md q-gutter-md">
-    <section class="hero-card glass-panel">
-      <div class="text-overline">Phase 13</div>
-      <h1>Model Runtime</h1>
-      <p>Certified OCR, object detection, transcription, and multimodal capture bridge.</p>
-      <div class="row q-gutter-sm">
-        <q-btn color="primary" icon="mdi-heart-pulse" label="Check runtimes" @click="load" />
-        <q-btn outline color="primary" icon="mdi-text-recognition" label="Process sample text" @click="processSample" />
-      </div>
-    </section>
+  <q-page class="column q-gutter-lg">
+    <NexusPageHero eyebrow="Ops" title="Model Runtime" subtitle="Certified OCR, object detection, transcription, and multimodal capture bridge.">
+      <template #actions>
+        <q-btn color="primary" icon="mdi-heart-pulse" label="Check runtimes" :loading="loading" @click="load" />
+        <q-btn outline icon="mdi-text-recognition" label="Process sample text" @click="processSample" />
+      </template>
+    </NexusPageHero>
 
-    <q-card class="glass-panel">
+    <q-banner v-if="error" class="bg-negative text-white" rounded>
+      <template #avatar><q-icon name="mdi-alert-circle-outline" /></template>
+      {{ error }}
+      <template #action><q-btn flat color="white" label="Dismiss" @click="error = ''" /></template>
+    </q-banner>
+
+    <q-card class="glass-card">
       <q-card-section>
-        <div class="text-h6">Runtime status</div>
-        <q-banner v-if="error" class="bg-negative text-white q-mt-sm">{{ error }}</q-banner>
-        <div class="row q-col-gutter-md q-mt-sm">
-          <div v-for="runtime in status?.runtimes || []" :key="runtime.name" class="col-12 col-md-4">
-            <q-card bordered flat>
-              <q-card-section>
-                <div class="text-subtitle1">{{ runtime.name }}</div>
-                <q-chip :color="runtime.available ? 'positive' : 'warning'" text-color="white">{{ runtime.mode }}</q-chip>
-                <div class="text-caption q-mt-sm">{{ runtime.detail }}</div>
-              </q-card-section>
-            </q-card>
-          </div>
-        </div>
+        <div class="text-h6 q-mb-sm">Runtime status</div>
       </q-card-section>
+      <q-card-section v-if="loading && !status">
+        <q-inner-loading showing color="primary" />
+      </q-card-section>
+      <div v-else-if="status?.runtimes?.length" class="row q-col-gutter-md q-pa-md">
+        <div v-for="runtime in status.runtimes" :key="runtime.name" class="col-12 col-md-4">
+          <q-card class="glass-card">
+            <q-card-section>
+              <div class="text-subtitle1 text-weight-bold">{{ runtime.name }}</div>
+              <q-badge :color="runtime.available ? 'positive' : 'warning'" :label="runtime.mode" class="q-mt-xs" />
+              <div class="text-caption q-mt-sm" style="color:var(--nexus-muted)">{{ runtime.detail }}</div>
+            </q-card-section>
+          </q-card>
+        </div>
+      </div>
+      <NexusEmptyState v-else icon="mdi-brain" message="No runtime info available." hint="Click 'Check runtimes' to load." />
     </q-card>
 
-    <q-card class="glass-panel">
+    <q-card v-if="result" class="glass-card">
       <q-card-section>
-        <div class="text-h6">Sample result</div>
-        <pre class="result-box">{{ JSON.stringify(result, null, 2) }}</pre>
+        <div class="text-h6 q-mb-sm">Sample result</div>
+        <pre class="code-block">{{ JSON.stringify(result, null, 2) }}</pre>
       </q-card-section>
     </q-card>
   </q-page>
 </template>
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import NexusPageHero from '../components/NexusPageHero.vue'
+import NexusEmptyState from '../components/NexusEmptyState.vue'
 import { jsonFetch, modelRuntimeUrl } from '../services/api'
 
 const status = ref<any>(null)
 const result = ref<any>(null)
 const error = ref('')
+const loading = ref(false)
 
 async function load() {
+  loading.value = true
   error.value = ''
-  try { status.value = await jsonFetch(`${modelRuntimeUrl}/api/model-runtime/runtimes`) }
-  catch (err: any) { error.value = err.message }
+  try {
+    status.value = await jsonFetch(`${modelRuntimeUrl}/api/model-runtime/runtimes`)
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : String(err)
+  } finally {
+    loading.value = false
+  }
 }
+
 async function processSample() {
   error.value = ''
   try {
     result.value = await jsonFetch(`${modelRuntimeUrl}/api/model-runtime/process-text`, {
       method: 'POST',
-      body: JSON.stringify({ filename: 'sample.txt', text: 'A book passage about retrieval practice, spaced repetition, and diagrams.' })
+      body: JSON.stringify({ filename: 'sample.txt', text: 'A book passage about retrieval practice, spaced repetition, and diagrams.' }),
     })
-  } catch (err: any) { error.value = err.message }
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : String(err)
+  }
 }
+
 onMounted(load)
 </script>
-<style scoped>
-.result-box { white-space: pre-wrap; overflow: auto; max-height: 420px; }
-</style>

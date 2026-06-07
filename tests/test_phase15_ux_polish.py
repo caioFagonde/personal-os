@@ -233,11 +233,10 @@ def test_bottom_nav_includes_core_daily_items():
     assert "command-center" in text
 
 
-def test_bottom_nav_includes_study_not_coding_agent():
+def test_bottom_nav_includes_daily_driver_modules():
     text = read_component("BottomNav.vue")
-    # study-companion is a more daily-driver choice than coding-agent for mobile bottom nav
-    assert "study-companion" in text or "study" in text
-    # coding-agent should not be in the 5 mobile bottom slots (it's a power-user feature)
+    assert "capture" in text
+    assert "tasks" in text
     assert "'coding-agent'" not in text and '"coding-agent"' not in text
 
 
