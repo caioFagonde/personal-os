@@ -40,6 +40,7 @@ CAPTURE_SERVICE_URL = os.environ.get("CAPTURE_SERVICE_URL", "http://capture-serv
 STUDY_COMPANION_SERVICE_URL = os.environ.get("STUDY_COMPANION_SERVICE_URL", "http://study-companion-service:8088")
 CONNECTOR_SERVICE_URL = os.environ.get("CONNECTOR_SERVICE_URL", "http://connector-service:8094")
 MODEL_RUNTIME_SERVICE_URL = os.environ.get("MODEL_RUNTIME_SERVICE_URL", "http://model-runtime:8095")
+CODING_AGENT_SERVICE_URL = os.environ.get("CODING_AGENT_SERVICE_URL", "http://coding-agent-service:8096")
 ACCESS_TOKEN_TTL_SECONDS = int(os.environ.get("ACCESS_TOKEN_TTL_SECONDS", "900"))
 REFRESH_TOKEN_TTL_DAYS = int(os.environ.get("REFRESH_TOKEN_TTL_DAYS", "30"))
 DEFAULT_DEVICE_SCOPES = [
@@ -70,6 +71,8 @@ DEFAULT_DEVICE_SCOPES = [
     "connectors:write",
     "model_runtime:read",
     "model_runtime:write",
+    "coding_agent:read",
+    "coding_agent:write",
 ]
 
 app = FastAPI(title="Personal OS API Gateway", version="0.7.0")
@@ -257,6 +260,7 @@ async def control_health(principal: Principal = Depends(active_principal)) -> di
             "digital_twin": f"{DIGITAL_TWIN_SERVICE_URL}/health",
             "connectors": f"{CONNECTOR_SERVICE_URL}/health",
             "model_runtime": f"{MODEL_RUNTIME_SERVICE_URL}/health",
+            "coding_agent": f"{CODING_AGENT_SERVICE_URL}/health",
         }.items():
             try:
                 resp = await client.get(url)
@@ -568,6 +572,12 @@ async def proxy_connectors(path: str, request: Request, principal: Principal = D
 async def proxy_model_runtime(path: str, request: Request, principal: Principal = Depends(active_principal)) -> Response:
     require_scope(principal, "model_runtime:read" if request.method == "GET" else "model_runtime:write")
     return await proxy_request(MODEL_RUNTIME_SERVICE_URL, path, request)
+
+
+@app.api_route("/api/proxy/coding-agent/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
+async def proxy_coding_agent(path: str, request: Request, principal: Principal = Depends(active_principal)) -> Response:
+    require_scope(principal, "coding_agent:read" if request.method == "GET" else "coding_agent:write")
+    return await proxy_request(CODING_AGENT_SERVICE_URL, path, request)
 
 
 async def proxy_request(base_url: str, path: str, request: Request) -> Response:

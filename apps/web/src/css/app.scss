@@ -98,3 +98,85 @@ h1, h2, h3 { letter-spacing: -0.04em; }
   overflow: auto;
 }
 .mini-code { max-height: 100px; font-size: 11px; }
+
+/* Phase 14 visual stabilization */
+.glass-card,
+.nexus-card,
+.q-card.glass-card,
+.q-card.nexus-card {
+  background: linear-gradient(180deg, rgba(21, 31, 55, 0.94), rgba(11, 18, 34, 0.92)) !important;
+  border: 1px solid var(--nexus-border) !important;
+  color: var(--nexus-text) !important;
+  border-radius: 22px !important;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28) !important;
+}
+.q-card__section,
+.q-card__actions,
+.q-item,
+.q-field,
+.q-table,
+.q-markup-table,
+.q-tab-panel {
+  color: var(--nexus-text);
+}
+.q-card p,
+.q-card .text-caption,
+.q-card .text-body2,
+.text-muted {
+  color: var(--nexus-muted) !important;
+}
+.q-page .q-btn--outline:before {
+  border-color: rgba(125, 211, 252, 0.62) !important;
+}
+.q-page .q-btn--outline,
+.q-page .q-btn--flat {
+  color: var(--nexus-accent) !important;
+}
+.q-field--outlined .q-field__control:before {
+  border-color: rgba(152, 184, 255, 0.28) !important;
+}
+.q-field--outlined .q-field__control,
+.q-field--filled .q-field__control,
+.q-field__native,
+.q-field__input,
+.q-textarea .q-field__native {
+  color: var(--nexus-text) !important;
+}
+.q-field__label,
+.q-placeholder::placeholder {
+  color: rgba(219, 234, 254, 0.62) !important;
+}
+.q-menu,
+.q-dialog__inner > .q-card {
+  background: #101827 !important;
+  color: var(--nexus-text) !important;
+}
+.q-table__container,
+.q-table__card,
+.q-table tbody,
+.q-table thead,
+.q-table tr,
+.q-table th,
+.q-table td {
+  background: transparent !important;
+  color: var(--nexus-text) !important;
+  border-color: rgba(152, 184, 255, 0.12) !important;
+}
+pre,
+.code-block,
+.mini-code {
+  color: #dbeafe;
+}
+.hero-panel {
+  background: linear-gradient(135deg, rgba(21, 31, 55, 0.94), rgba(16, 24, 44, 0.78));
+  border: 1px solid var(--nexus-border);
+  border-radius: 26px;
+  padding: clamp(18px, 3vw, 34px);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.25);
+}
+.hero-panel h1 { margin: 0 0 8px; }
+.hero-panel p { color: var(--nexus-muted); max-width: 920px; }
+.eyebrow { color: var(--nexus-accent); text-transform: uppercase; letter-spacing: .16em; font-size: 11px; font-weight: 800; }
+.action-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 16px; }
+.quick-card { min-height: 170px; display: flex; flex-direction: column; justify-content: space-between; }
+.status-pill { border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 700; background: rgba(125, 211, 252, .14); color: var(--nexus-accent); }

@@ -25,7 +25,9 @@
     "certify:live-stack": "./scripts/certify/live-stack-e2e.sh",
     "certify:physical-sync": "./scripts/certify/physical-sync.sh",
     "certify:model-runtime": "./scripts/certify/model-runtime.sh",
-    "release:publish": "./scripts/release/publish-github-release.sh"
+    "release:publish": "./scripts/release/publish-github-release.sh",
+    "test:phase14": "make test-phase14",
+    "up:coding-agent": "make up-coding-agent"
   },
   "devDependencies": {
     "prettier": "^3.3.3",

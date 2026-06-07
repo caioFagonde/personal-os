@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from .executor import execute_workflow_plan, outcome_to_dict
-from .models import RunStatus, WorkflowSpec
+from .models import WorkflowSpec
 from .n8n_bridge import normalize_n8n_webhook, verify_payload_signature
 from .policy import evaluate_workflow_policy
 from .scheduler import is_interval_due, next_interval_due

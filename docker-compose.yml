@@ -105,6 +105,7 @@ services:
       STUDY_COMPANION_SERVICE_URL: http://study-companion-service:8088
       CONNECTOR_SERVICE_URL: http://connector-service:8094
       MODEL_RUNTIME_SERVICE_URL: http://model-runtime:8095
+      CODING_AGENT_SERVICE_URL: http://coding-agent-service:8096
       AUTH_REQUIRED: ${AUTH_REQUIRED:-false}
       ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS:-900}
       REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-30}
@@ -399,6 +400,34 @@ services:
       <<: *health
     networks: [personal_os_net]
 
+  coding-agent-service:
+    build:
+      context: ./services/coding-agent-service
+    container_name: personal-os-coding-agent-service
+    profiles: ["automation", "apps", "full"]
+    <<: *restart
+    env_file: .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      AUTH_REQUIRED: ${AUTH_REQUIRED:-false}
+      CODING_AGENT_REPO_PATH: ${CODING_AGENT_REPO_PATH:-/workspace}
+      CODING_AGENT_ALLOWED_REPO_ROOTS: ${CODING_AGENT_ALLOWED_REPO_ROOTS:-/workspace}
+      CODING_AGENT_WORKTREE_ROOT: ${CODING_AGENT_WORKTREE_ROOT:-/workspace/.agent-worktrees}
+      CODING_AGENT_EXECUTE: ${CODING_AGENT_EXECUTE:-false}
+      CLAUDE_CODE_COMMAND: ${CLAUDE_CODE_COMMAND:-claude}
+    volumes:
+      - .:/workspace
+      - ./workspace/agent-worktrees:/workspace/.agent-worktrees
+    ports:
+      - "${CODING_AGENT_SERVICE_PORT:-8096}:8096"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8096/health"]
+      <<: *health
+    networks: [personal_os_net]
+
   web:
     build:
       context: .
@@ -418,6 +447,7 @@ services:
       VITE_STUDY_COMPANION_URL: ${VITE_STUDY_COMPANION_URL:-http://localhost:8080/api/proxy/study-companion}
       VITE_CONNECTORS_URL: ${VITE_CONNECTORS_URL:-http://localhost:8080/api/proxy/connectors}
       VITE_MODEL_RUNTIME_URL: ${VITE_MODEL_RUNTIME_URL:-http://localhost:8080/api/proxy/model-runtime}
+      VITE_CODING_AGENT_URL: ${VITE_CODING_AGENT_URL:-http://localhost:8080/api/proxy/coding-agent}
     ports:
       - "${WEB_PORT:-9000}:9000"
     depends_on:

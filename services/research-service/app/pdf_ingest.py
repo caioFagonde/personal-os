@@ -4,7 +4,6 @@ import hashlib
 import io
 import re
 from dataclasses import dataclass
-from typing import Iterable
 
 try:
     from pypdf import PdfReader

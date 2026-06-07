@@ -331,7 +331,7 @@ def extract_learning_atoms(text: str) -> list[str]:
 
 
 def infer_title(text: str) -> str:
-    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
     if lines:
         return lines[0][:120]
     return text[:80] or "Study capture"

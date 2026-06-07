@@ -1,13 +1,16 @@
 SHELL := /usr/bin/env bash
 COMPOSE := docker compose --env-file .env
 
-.PHONY: install doctor up down up-research up-maps up-automation up-digital-twin up-capture up-study-companion up-connectors logs backup restore mobile desktop test test-backend test-phase5 test-phase6 test-phase8 test-phase9 test-phase10 test-frontend test-mobile test-desktop lint format nuke migrate seed
+.PHONY: install doctor doctor-full up down up-research up-maps up-automation up-digital-twin up-capture up-study-companion up-connectors logs backup restore mobile desktop test test-backend test-phase5 test-phase6 test-phase8 test-phase9 test-phase10 test-frontend test-mobile test-desktop lint format nuke migrate seed
 
 install:
 	./scripts/bootstrap.sh
 
 doctor:
 	./scripts/doctor.sh
+
+doctor-full:
+	./scripts/doctor-full.sh
 
 up:
 	$(COMPOSE) --profile core up -d --build
@@ -198,3 +201,11 @@ publish-release:
 .PHONY: doctor-qdrant
 doctor-qdrant:
 	./scripts/doctor-qdrant.sh
+
+.PHONY: up-coding-agent test-phase14
+up-coding-agent:
+	$(COMPOSE) --profile apps --profile automation up -d --build coding-agent-service
+
+test-phase14:
+	cd services/coding-agent-service && python -m pytest tests -q
+	python -m pytest tests/test_phase14_scaffold.py -q

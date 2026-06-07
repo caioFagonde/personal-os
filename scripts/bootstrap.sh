@@ -75,6 +75,7 @@ curl -fsS "http://localhost:${MODULE_SERVICE_PORT:-8083}/health" >/dev/null && o
 if [[ "$MODE" != "core" ]]; then
   curl -fsS "http://localhost:${CONNECTOR_SERVICE_PORT:-8094}/health" >/dev/null && ok "Connector service healthy" || warn "Connector service not healthy yet"
   curl -fsS "http://localhost:${MODEL_RUNTIME_SERVICE_PORT:-8095}/health" >/dev/null && ok "Model runtime healthy" || warn "Model runtime not healthy yet"
+  curl -fsS "http://localhost:${CODING_AGENT_SERVICE_PORT:-8096}/health" >/dev/null && ok "Coding agent healthy" || warn "Coding agent not healthy yet"
 fi
 
 info "Auth smoke test"
@@ -112,33 +113,48 @@ fi
 
 cat <<EOF
 
-Personal OS core is starting.
+═══════════════════════════════════════════════════════════
+ Personal OS — Bootstrap complete (mode: ${MODE})
+═══════════════════════════════════════════════════════════
 
-Local URLs:
-  API gateway:  http://localhost:${API_GATEWAY_PORT:-8080}
-  Sync engine:  http://localhost:${SYNC_ENGINE_PORT:-8081}
-  Command bus:  http://localhost:${COMMAND_BUS_PORT:-8082}
-  Module API:   http://localhost:${MODULE_SERVICE_PORT:-8083}
-  Research API: http://localhost:${RESEARCH_SERVICE_PORT:-8084}  (run: make up-research)
-  Automation:   http://localhost:${AUTOMATION_SERVICE_PORT:-8085}  (run: make up-automation)
-  Connectors:   http://localhost:${CONNECTOR_SERVICE_PORT:-8094}  (run: make up-connectors)
-  Model runtime:http://localhost:${MODEL_RUNTIME_SERVICE_PORT:-8095}  (run: make up-model-runtime)
-  MinIO:        http://localhost:9001
-  NATS monitor: http://localhost:8222
+ Core services (always up):
+   API gateway:     http://localhost:${API_GATEWAY_PORT:-8080}
+   Sync engine:     http://localhost:${SYNC_ENGINE_PORT:-8081}
+   Command bus:     http://localhost:${COMMAND_BUS_PORT:-8082}
+   Module service:  http://localhost:${MODULE_SERVICE_PORT:-8083}
+   MinIO console:   http://localhost:9001
+   NATS monitor:    http://localhost:8222
 
-Tailscale IPv4: ${TS_IP:-not detected}
+ Optional services (run: make up-<name>):
+   Research:        http://localhost:${RESEARCH_SERVICE_PORT:-8084}    make up-research
+   Automation:      http://localhost:${AUTOMATION_SERVICE_PORT:-8085}   make up-automation
+   Connectors:      http://localhost:${CONNECTOR_SERVICE_PORT:-8094}    make up-connectors
+   Model runtime:   http://localhost:${MODEL_RUNTIME_SERVICE_PORT:-8095} make up-model-runtime
+   Coding agent:    http://localhost:${CODING_AGENT_SERVICE_PORT:-8096} make up-coding-agent
 
-Next:
-  make logs
-  TOKEN=\$(curl -fsS -X POST http://localhost:${API_GATEWAY_PORT:-8080}/api/devices/register -H 'content-type: application/json' -d '{"device_key":"cli","name":"CLI","kind":"desktop","platform":"linux"}' | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
-  curl -H "authorization: Bearer \$TOKEN" http://localhost:${API_GATEWAY_PORT:-8080}/api/modules
-  curl -H "authorization: Bearer \$TOKEN" http://localhost:${API_GATEWAY_PORT:-8080}/api/proxy/sync/api/sync/health
+ Web UI:           http://localhost:${WEB_PORT:-9000}
+ Onboarding:       http://localhost:${WEB_PORT:-9000}/onboarding
 
-Open onboarding:
-  http://localhost:${WEB_PORT:-9000}/onboarding
+ Tailscale IPv4:   ${TS_IP:-not detected}
+
+ Quick check:
+   make doctor-full
+   make logs
+
+ Mint an auth token:
+   TOKEN=\$(curl -fsS -X POST http://localhost:${API_GATEWAY_PORT:-8080}/api/devices/register \\
+     -H 'content-type: application/json' \\
+     -d '{"device_key":"cli","name":"CLI","kind":"desktop","platform":"linux"}' \\
+     | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
+   curl -H "authorization: Bearer \$TOKEN" http://localhost:${API_GATEWAY_PORT:-8080}/api/modules
+
+═══════════════════════════════════════════════════════════
 EOF
 
-if [[ "${BOOTSTRAP_AUTOMATION_INTERACTIVE:-true}" == "true" ]]; then
+# Only run interactive authorization if explicitly enabled OR if we have a real TTY (not CI).
+_interactive_default="false"
+if [[ -t 1 ]]; then _interactive_default="true"; fi
+if [[ "${BOOTSTRAP_AUTOMATION_INTERACTIVE:-${_interactive_default}}" == "true" ]]; then
   info "Running interactive authorization handoff for Tailscale, ADB, and OAuth when configured"
   ./scripts/onboarding/auto-authorize.sh || warn "Interactive authorization handoff incomplete; continue from /onboarding"
 fi

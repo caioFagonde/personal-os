@@ -145,7 +145,7 @@ async def search_crossref(client: httpx.AsyncClient, query: str, limit: int) -> 
         if issued and issued[0] and isinstance(issued[0][0], int):
             year = issued[0][0]
         links = item.get("link", []) or []
-        pdf_url = next((l.get("URL") for l in links if "pdf" in (l.get("content-type") or "").lower()), None)
+        pdf_url = next((lnk.get("URL") for lnk in links if "pdf" in (lnk.get("content-type") or "").lower()), None)
         out.append(
             SearchResult(
                 source="crossref",

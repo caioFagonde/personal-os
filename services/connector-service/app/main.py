@@ -1,24 +1,31 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 import secrets
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
-from uuid import UUID
 
 import asyncpg
 import httpx
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, Response
 from pydantic import BaseModel, Field
 
 from .backup import create_backup_bundle
 from .crypto import encrypt_text
-from .oauth import OAuthConfig, build_authorization_start, token_endpoint, token_exchange_payload
+from .oauth import (
+    OAuthConfig,
+    build_authorization_start,
+    device_authorization_endpoint,
+    device_authorization_payload,
+    device_token_payload,
+    normalize_scopes,
+    token_endpoint,
+    token_exchange_payload,
+)
 from .providers import provider_status_from_env, publish_ntfy, send_twilio_whatsapp, twilio_message_payload
 from .worker import ConnectorWorker, WorkerConfig, run_worker_forever
 
@@ -53,6 +60,11 @@ class OutboxDrainRequest(BaseModel):
 
 class BackupExportRequest(BaseModel):
     include_runtime: bool = False
+
+
+class DeviceFlowPollRequest(BaseModel):
+    device_code: str = Field(min_length=8)
+
 
 
 async def pool() -> asyncpg.Pool:
@@ -116,11 +128,82 @@ async def connector_status() -> dict[str, Any]:
     return {p: provider_status_from_env(env, p).__dict__ for p in ["google", "microsoft", "twilio", "ntfy", "tailscale"]}
 
 
+def missing_oauth_client_detail(provider: str) -> dict[str, Any]:
+    provider = provider.lower()
+    if provider == "google":
+        required = ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI"]
+    elif provider == "microsoft":
+        required = ["MICROSOFT_CLIENT_ID", "MICROSOFT_CLIENT_SECRET", "MICROSOFT_REDIRECT_URI"]
+    else:
+        required = []
+    return {
+        "provider": provider,
+        "status": "needs_oauth_client",
+        "configured": False,
+        "required_env": required,
+        "message": f"{provider.title()} OAuth client is not configured. Set {', '.join(required)} in .env and restart connector-service.",
+        "action": "configure_env",
+    }
+
+
+
+async def store_oauth_token_response(conn: asyncpg.Connection, *, provider: str, scopes: list[str], token_response: dict[str, Any]) -> dict[str, Any]:
+    refresh_token = token_response.get("refresh_token")
+    if not refresh_token:
+        raise HTTPException(status_code=502, detail="provider did not return refresh_token; re-run consent with offline access")
+    profile_id = await conn.fetchval("SELECT id FROM profiles WHERE handle='default'")
+    account_email = token_response.get("id_token_email") or token_response.get("email")
+    account_id = await conn.fetchval(
+        """
+        INSERT INTO cloud_accounts(profile_id, provider, account_email, scopes, status)
+        VALUES($1,$2,$3,$4,'active')
+        ON CONFLICT DO NOTHING
+        RETURNING id
+        """,
+        profile_id,
+        provider,
+        account_email,
+        scopes,
+    )
+    if account_id is None:
+        account_id = await conn.fetchval(
+            """
+            SELECT id FROM cloud_accounts WHERE profile_id=$1 AND provider=$2
+            ORDER BY updated_at DESC LIMIT 1
+            """,
+            profile_id,
+            provider,
+        )
+    await conn.execute(
+        """
+        INSERT INTO cloud_tokens(cloud_account_id, token_type, encrypted_token, key_version, expires_at, rotated_at)
+        VALUES($1,'oauth_refresh',$2,$3,$4,now())
+        """,
+        account_id,
+        encrypt_text(refresh_token),
+        os.environ.get("TOKEN_ENCRYPTION_KEY_VERSION", "local-v1"),
+        None,
+    )
+    await conn.execute("UPDATE cloud_accounts SET status='active', updated_at=now() WHERE id=$1", account_id)
+    await conn.execute(
+        """
+        INSERT INTO connector_health_checks(provider, status, message, checked_at)
+        VALUES($1,'active','OAuth credential stored',now())
+        """,
+        provider,
+    )
+    return {"status": "connected", "provider": provider, "cloud_account_id": str(account_id), "scopes": scopes}
+
 @app.get("/api/connectors/{provider}/start")
 async def oauth_start(provider: str, scopes: str | None = Query(default=None)) -> dict[str, Any]:
     provider = provider.lower()
-    config = oauth_config(provider, requested_scopes=scopes.split(",") if scopes else None)
-    start = build_authorization_start(config)
+    try:
+        config = oauth_config(provider, requested_scopes=scopes.split(",") if scopes else None)
+        start = build_authorization_start(config)
+    except ValueError as exc:
+        if provider in {"google", "microsoft"}:
+            raise HTTPException(status_code=409, detail=missing_oauth_client_detail(provider)) from exc
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     p = await pool()
     async with p.acquire() as conn:
         await conn.execute(
@@ -172,53 +255,96 @@ async def oauth_callback(provider: str, code: str | None = None, state: str | No
             raise HTTPException(status_code=400, detail="invalid or expired OAuth state")
         config = oauth_config(provider, requested_scopes=list(row["scopes"]))
         token_response = await exchange_code(config, code=code, code_verifier=row["code_verifier"])
-        refresh_token = token_response.get("refresh_token")
-        if not refresh_token:
-            raise HTTPException(status_code=502, detail="provider did not return refresh_token; re-run consent with offline access")
-        profile_id = await conn.fetchval("SELECT id FROM profiles WHERE handle='default'")
-        account_email = token_response.get("id_token_email") or token_response.get("email")
-        account_id = await conn.fetchval(
-            """
-            INSERT INTO cloud_accounts(profile_id, provider, account_email, scopes, status)
-            VALUES($1,$2,$3,$4,'active')
-            ON CONFLICT DO NOTHING
-            RETURNING id
-            """,
-            profile_id,
-            provider,
-            account_email,
-            list(row["scopes"]),
-        )
-        if account_id is None:
-            account_id = await conn.fetchval(
-                """
-                SELECT id FROM cloud_accounts WHERE profile_id=$1 AND provider=$2
-                ORDER BY updated_at DESC LIMIT 1
-                """,
-                profile_id,
-                provider,
-            )
-        await conn.execute(
-            """
-            INSERT INTO cloud_tokens(cloud_account_id, token_type, encrypted_token, key_version, expires_at, rotated_at)
-            VALUES($1,'oauth_refresh',$2,$3,$4,now())
-            """,
-            account_id,
-            encrypt_text(refresh_token),
-            os.environ.get("TOKEN_ENCRYPTION_KEY_VERSION", "local-v1"),
-            None,
-        )
-        await conn.execute("UPDATE cloud_accounts SET status='active', updated_at=now() WHERE id=$1", account_id)
+        result = await store_oauth_token_response(conn, provider=provider, scopes=list(row["scopes"]), token_response=token_response)
         await conn.execute("UPDATE connector_oauth_states SET consumed_at=now() WHERE id=$1", row["id"])
+    return result
+
+
+@app.get("/api/connectors/{provider}/device/start")
+async def oauth_device_start(provider: str, scopes: str | None = Query(default=None)) -> dict[str, Any]:
+    provider = provider.lower()
+    try:
+        config = oauth_config(provider, requested_scopes=scopes.split(",") if scopes else None)
+    except ValueError as exc:
+        if provider in {"google", "microsoft"}:
+            raise HTTPException(status_code=409, detail=missing_oauth_client_detail(provider)) from exc
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not config.client_id:
+        raise HTTPException(status_code=409, detail=missing_oauth_client_detail(provider))
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        resp = await client.post(
+            device_authorization_endpoint(config.provider, config.tenant),
+            data=device_authorization_payload(config),
+            headers={"accept": "application/json"},
+        )
+    if resp.status_code >= 400:
+        raise HTTPException(status_code=502, detail={"provider": provider, "status": resp.status_code, "body": resp.text[:1000]})
+    data = resp.json()
+    expires_in = int(data.get("expires_in", 900))
+    interval = int(data.get("interval", 5))
+    p = await pool()
+    async with p.acquire() as conn:
         await conn.execute(
             """
-            INSERT INTO connector_health_checks(provider, status, message, checked_at)
-            VALUES($1,'active','OAuth callback succeeded',now())
+            INSERT INTO connector_device_flows(provider, device_code, user_code, verification_uri, verification_uri_complete, scopes, interval_seconds, expires_at)
+            VALUES($1,$2,$3,$4,$5,$6,$7,now() + ($8 || ' seconds')::interval)
+            ON CONFLICT DO NOTHING
             """,
             provider,
+            data.get("device_code"),
+            data.get("user_code"),
+            data.get("verification_uri") or data.get("verification_url"),
+            data.get("verification_uri_complete"),
+            list(normalize_scopes(provider, config.scopes)),
+            interval,
+            expires_in,
         )
-    return {"status": "connected", "provider": provider, "cloud_account_id": str(account_id), "scopes": list(row["scopes"])}
+    return {
+        "provider": provider,
+        "device_code": data.get("device_code"),
+        "user_code": data.get("user_code"),
+        "verification_uri": data.get("verification_uri") or data.get("verification_url"),
+        "verification_uri_complete": data.get("verification_uri_complete"),
+        "expires_in_seconds": expires_in,
+        "interval_seconds": interval,
+        "action": "open_device_code",
+        "poll_url": f"/api/connectors/{provider}/device/poll",
+    }
 
+
+@app.post("/api/connectors/{provider}/device/poll")
+async def oauth_device_poll(provider: str, payload: DeviceFlowPollRequest) -> dict[str, Any]:
+    provider = provider.lower()
+    config = oauth_config(provider)
+    p = await pool()
+    async with p.acquire() as conn:
+        flow = await conn.fetchrow(
+            """
+            SELECT * FROM connector_device_flows
+            WHERE provider=$1 AND device_code=$2 AND status='pending' AND expires_at > now()
+            ORDER BY created_at DESC LIMIT 1
+            """,
+            provider,
+            payload.device_code,
+        )
+        if not flow:
+            raise HTTPException(status_code=404, detail="device flow not found or expired")
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        resp = await client.post(
+            token_endpoint(config.provider, config.tenant),
+            data=device_token_payload(config, device_code=payload.device_code),
+            headers={"accept": "application/json"},
+        )
+    data = resp.json() if resp.content else {}
+    if resp.status_code >= 400:
+        error = data.get("error") if isinstance(data, dict) else None
+        if error in {"authorization_pending", "slow_down"}:
+            return {"status": error, "provider": provider, "interval_seconds": flow["interval_seconds"] + (5 if error == "slow_down" else 0)}
+        raise HTTPException(status_code=502, detail={"provider": provider, "status": resp.status_code, "body": data})
+    async with p.acquire() as conn:
+        result = await store_oauth_token_response(conn, provider=provider, scopes=list(flow["scopes"]), token_response=data)
+        await conn.execute("UPDATE connector_device_flows SET status='connected', consumed_at=now() WHERE id=$1", flow["id"])
+    return result
 
 @app.post("/api/connectors/twilio/test")
 async def test_twilio(payload: ConnectorTestRequest) -> dict[str, Any]:

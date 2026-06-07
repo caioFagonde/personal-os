@@ -1,0 +1,25 @@
+id: coding-agent
+name: Coding Agent
+version: 0.14.0
+description: Approval-gated Claude Code worktree runner for remote coding jobs.
+routes:
+  web: /coding-agent
+  api: /api/coding-agent
+permissions:
+  - coding_agent:read
+  - coding_agent:write
+  - command:request
+events:
+  publishes:
+    - coding-agent.job.created
+    - coding-agent.run.completed
+  subscribes:
+    - command.approved
+storage:
+  tables:
+    - coding_agent_jobs
+    - coding_agent_runs
+    - coding_agent_artifacts
+sync:
+  enabled: true
+  strategy: local-first

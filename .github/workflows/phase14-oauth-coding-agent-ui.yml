@@ -1,0 +1,74 @@
+name: phase14-oauth-coding-agent-ui
+
+on:
+  push:
+    paths:
+      - 'services/coding-agent-service/**'
+      - 'services/connector-service/**'
+      - 'services/api-gateway/**'
+      - 'apps/web/**'
+      - 'infra/postgres/migrations/012_phase_14_oauth_coding_agent_command_center.sql'
+      - 'tests/test_phase14_scaffold.py'
+      - '.github/workflows/phase14-oauth-coding-agent-ui.yml'
+  pull_request:
+    paths:
+      - 'services/coding-agent-service/**'
+      - 'services/connector-service/**'
+      - 'services/api-gateway/**'
+      - 'apps/web/**'
+      - 'infra/postgres/migrations/012_phase_14_oauth_coding_agent_command_center.sql'
+      - 'tests/test_phase14_scaffold.py'
+
+jobs:
+  coding-agent-unit:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r services/coding-agent-service/requirements.txt pytest
+      - run: cd services/coding-agent-service && PYTHONPATH=. python -m pytest tests -q
+
+  scaffold-contract:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pytest pyyaml
+      - run: python -m pytest tests/test_phase14_scaffold.py -q
+
+  web-contract:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: pnpm install --frozen-lockfile=false
+      - run: pnpm --dir apps/web test
+
+  compose-contract:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: cp .env.example .env && python3 scripts/generate-env.py .env
+      - run: docker compose --env-file .env --profile full config >/tmp/full.yml
+      - run: grep -q personal-os-coding-agent-service /tmp/full.yml
+      - run: grep -q CODING_AGENT_SERVICE_URL /tmp/full.yml

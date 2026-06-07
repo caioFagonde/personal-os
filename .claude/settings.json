@@ -1,0 +1,47 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./secrets/**)",
+      "Read(./data/**)",
+      "Read(./backups/**)",
+      "Read(./logs/**)",
+      "Read(./node_modules/**)",
+      "Read(./.git/**)",
+      "Read(./**/*token*)",
+      "Read(./**/*credentials*)",
+      "Read(./**/client_secret*.json)",
+      "Bash(rm -rf /*)",
+      "Bash(rm -rf ~*)",
+      "Bash(sudo *)",
+      "Bash(curl *|*bash*)",
+      "Bash(wget *|*bash*)",
+      "Bash(docker volume rm *)",
+      "Bash(docker system prune *)"
+    ],
+    "ask": [
+      "Bash(docker compose *)",
+      "Bash(git push *)",
+      "Bash(git reset *)",
+      "Bash(git clean *)",
+      "Bash(pnpm install *)",
+      "Bash(npm install *)",
+      "Bash(pip install *)"
+    ],
+    "allow": [
+      "Read",
+      "Grep",
+      "Glob",
+      "Edit",
+      "Write",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(python3 -m pytest tests -q*)",
+      "Bash(./scripts/check-secrets.sh*)",
+      "Bash(bash -n scripts/*.sh*)",
+      "Bash(docker compose --env-file .env config*)"
+    ]
+  }
+}

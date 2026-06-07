@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from .security import optional_principal, require_scope
-from .ar_math import Vec3, project_anchor_from_orientation, yaw_billboard_angle
+from .ar_math import project_anchor_from_orientation, yaw_billboard_angle
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://personal_os:personal_os@localhost:5432/personal_os")
 app = FastAPI(title="Personal OS Module Service", version="0.1.0")

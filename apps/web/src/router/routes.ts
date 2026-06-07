@@ -1,4 +1,4 @@
-import HomePage from '../pages/HomePage.vue'
+import CommandCenterPage from '../pages/CommandCenterPage.vue'
 import StudyPage from '../pages/StudyPage.vue'
 import ZettelkastenPage from '../pages/ZettelkastenPage.vue'
 import GeospatialPage from '../pages/GeospatialPage.vue'
@@ -24,15 +24,17 @@ import ReleaseCenterPage from '../pages/ReleaseCenterPage.vue'
 import ModelRuntimePage from '../pages/ModelRuntimePage.vue'
 import LiveStackPage from '../pages/LiveStackPage.vue'
 import InitialVersionReadinessPage from '../pages/InitialVersionReadinessPage.vue'
+import CodingAgentPage from '../pages/CodingAgentPage.vue'
 
 export default [
-  { path: '/', component: HomePage },
+  { path: '/', component: CommandCenterPage },
   { path: '/study', component: StudyPage },
   { path: '/zettelkasten', component: ZettelkastenPage },
   { path: '/geospatial', component: GeospatialPage },
   { path: '/research', component: ResearchPage },
   { path: '/ar-memory', component: ARMemoryPage },
   { path: '/automation', component: AutomationPage },
+  { path: '/coding-agent', component: CodingAgentPage },
   { path: '/digital-twin', component: DigitalTwinPage },
   { path: '/capture', component: CapturePage },
   { path: '/tasks', component: TasksPage },

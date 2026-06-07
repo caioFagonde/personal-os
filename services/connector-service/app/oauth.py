@@ -10,6 +10,8 @@ GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 MICROSOFT_AUTH_BASE = "https://login.microsoftonline.com/{tenant}/oauth2/v2.0/authorize"
 MICROSOFT_TOKEN_BASE = "https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token"
+GOOGLE_DEVICE_CODE_URL = "https://oauth2.googleapis.com/device/code"
+MICROSOFT_DEVICE_CODE_BASE = "https://login.microsoftonline.com/{tenant}/oauth2/v2.0/devicecode"
 
 DEFAULT_GOOGLE_SCOPES = (
     "openid",
@@ -156,5 +158,35 @@ def refresh_payload(config: OAuthConfig, *, refresh_token: str) -> dict[str, str
     if config.provider == "microsoft":
         data["scope"] = " ".join(normalize_scopes("microsoft", config.scopes))
     if config.client_secret:
+        data["client_secret"] = config.client_secret
+    return data
+
+
+def device_authorization_endpoint(provider: str, tenant: str = "common") -> str:
+    provider = provider.lower()
+    if provider == "google":
+        return GOOGLE_DEVICE_CODE_URL
+    if provider == "microsoft":
+        return MICROSOFT_DEVICE_CODE_BASE.format(tenant=tenant or "common")
+    raise ValueError(f"unsupported provider: {provider}")
+
+
+def device_authorization_payload(config: OAuthConfig) -> dict[str, str]:
+    scopes = normalize_scopes(config.provider, config.scopes)
+    data = {"client_id": config.client_id, "scope": " ".join(scopes)}
+    if config.provider == "google" and config.client_secret:
+        data["client_secret"] = config.client_secret
+    return data
+
+
+def device_token_payload(config: OAuthConfig, *, device_code: str) -> dict[str, str]:
+    data = {
+        "client_id": config.client_id,
+        "device_code": device_code,
+        "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+    }
+    if config.provider == "google" and config.client_secret:
+        data["client_secret"] = config.client_secret
+    if config.provider == "microsoft" and config.client_secret:
         data["client_secret"] = config.client_secret
     return data

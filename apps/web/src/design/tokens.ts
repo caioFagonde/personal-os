@@ -1,5 +1,5 @@
 export const navigationModules = [
-  { id: 'home', label: 'Command', path: '/', icon: 'mdi-view-dashboard-outline', group: 'Core' },
+  { id: 'command-center', label: 'Command Center', path: '/', icon: 'mdi-view-dashboard-outline', group: 'Core' },
   { id: 'capture', label: 'Capture', path: '/capture', icon: 'mdi-lightning-bolt-outline', group: 'Core' },
   { id: 'tasks', label: 'Tasks', path: '/tasks', icon: 'mdi-checkbox-marked-circle-auto-outline', group: 'Core' },
   { id: 'study', label: 'Study', path: '/study', icon: 'mdi-school-outline', group: 'Growth' },
@@ -9,8 +9,10 @@ export const navigationModules = [
   { id: 'geospatial', label: 'Maps', path: '/geospatial', icon: 'mdi-map-search-outline', group: 'Field' },
   { id: 'ar-memory', label: 'AR Memory', path: '/ar-memory', icon: 'mdi-cube-scan', group: 'Field' },
   { id: 'automation', label: 'Automation', path: '/automation', icon: 'mdi-transit-connection-variant', group: 'Ops' },
+  { id: 'coding-agent', label: 'Coding Agent', path: '/coding-agent', icon: 'mdi-code-braces', group: 'Ops' },
   { id: 'digital-twin', label: 'Twin', path: '/digital-twin', icon: 'mdi-brain', group: 'Core' },
   { id: 'sync', label: 'Sync', path: '/sync', icon: 'mdi-sync-circle', group: 'Ops' },
+  { id: 'sync-health', label: 'Sync Health', path: '/sync-health', icon: 'mdi-shield-sync-outline', group: 'Ops' },
   { id: 'offline-queue', label: 'Offline Queue', path: '/offline-queue', icon: 'mdi-cloud-sync-outline', group: 'Ops' },
   { id: 'conflicts', label: 'Conflicts', path: '/conflicts', icon: 'mdi-source-branch-sync', group: 'Ops' },
   { id: 'connectors', label: 'Connectors', path: '/connectors', icon: 'mdi-connection', group: 'Ops' },
