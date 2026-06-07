@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -63,8 +64,23 @@ def test_phase12_packages_expose_certification_commands():
 
 
 def test_phase12_archive_hygiene_excludes_runtime_artifacts():
-    assert not (ROOT / '.env').exists(), '.env'
+    # Local developer machines are expected to have a runtime .env. The invariant
+    # we need is: .env is never tracked and never shipped in source archives.
+    env_path = ROOT / '.env'
+    if env_path.exists():
+        if (ROOT / '.git').exists():
+            tracked = subprocess.run(
+                ['git', 'ls-files', '--error-unmatch', '.env'],
+                cwd=ROOT,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                text=True,
+            )
+            assert tracked.returncode != 0, '.env exists locally but must not be tracked'
+        else:
+            raise AssertionError('.env must not be present in packaged archives')
     gitignore = read('.gitignore')
+    assert '.env' in gitignore
     assert '.coverage' in gitignore
     assert '__pycache__/' in gitignore
     assert '*.py[cod]' in gitignore
