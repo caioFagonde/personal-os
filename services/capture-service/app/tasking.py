@@ -16,8 +16,11 @@ def priority_to_rank(priority: str | None) -> int:
     return PRIORITY_WEIGHTS.get((priority or "normal").lower(), PRIORITY_WEIGHTS["normal"])
 
 
+NON_DELEGATION_TARGETS = {"self", "me", "note", "task", "todo", "capture"}
+
+
 def initial_task_status(target: str | None) -> str:
-    if target and target not in {"self", "me"}:
+    if target and target not in NON_DELEGATION_TARGETS:
         return "delegated"
     return "inbox"
 

@@ -4,8 +4,16 @@
       <div class="eyebrow">Clone-and-continue</div>
       <h1>Device Pairing</h1>
       <p>Create a short-lived pairing URL and QR code for phones, tablets, or a second PC.</p>
-      <q-btn color="primary" icon="mdi-qrcode" label="Create pairing code" @click="create" />
     </section>
+
+    <q-banner v-if="error" class="bg-negative text-white" rounded>
+      <template #avatar><q-icon name="mdi-alert-circle-outline" /></template>
+      {{ error }}
+      <template #action><q-btn flat color="white" label="Dismiss" @click="error = ''" /></template>
+    </q-banner>
+
+    <q-btn color="primary" icon="mdi-qrcode" label="Create pairing code" :loading="creating" @click="create" />
+
     <q-card v-if="pairing" class="glass-card">
       <q-card-section class="row q-col-gutter-lg items-center">
         <div class="col-12 col-md-4">
@@ -13,9 +21,15 @@
         </div>
         <div class="col-12 col-md-8">
           <div class="text-h6">Pairing URL</div>
-          <q-input readonly :model-value="pairing.url" class="q-my-sm"><template #append><q-btn flat icon="mdi-content-copy" @click="copy(pairing.url)" /></template></q-input>
-          <q-input readonly label="Pairing code" :model-value="pairing.pairing_code"><template #append><q-btn flat icon="mdi-content-copy" @click="copy(pairing.pairing_code)" /></template></q-input>
-          <p class="text-caption q-mt-md">Expires in {{ pairing.expires_in_seconds }} seconds. Approve only devices you physically control.</p>
+          <q-input readonly :model-value="pairing.url" class="q-my-sm">
+            <template #append><q-btn flat icon="mdi-content-copy" @click="copy(pairing.url)" /></template>
+          </q-input>
+          <q-input readonly label="Pairing code" :model-value="pairing.pairing_code">
+            <template #append><q-btn flat icon="mdi-content-copy" @click="copy(pairing.pairing_code)" /></template>
+          </q-input>
+          <p class="text-caption q-mt-md">
+            Expires in {{ pairing.expires_in_seconds }} seconds. Approve only devices you physically control.
+          </p>
         </div>
       </q-card-section>
     </q-card>
@@ -24,9 +38,41 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { connectorsUrl, jsonFetch } from '../services/api'
+
 const pairing = ref<any | null>(null)
-const qrUrl = computed(() => pairing.value ? `${connectorsUrl}/api/connectors/device-pairing/qr?url=${encodeURIComponent(pairing.value.url)}` : '')
-async function create() { pairing.value = await jsonFetch(`${connectorsUrl}/api/connectors/device-pairing`, { method: 'POST', body: JSON.stringify({}) }) }
-async function copy(value: string) { await navigator.clipboard?.writeText(value) }
+const error = ref('')
+const creating = ref(false)
+const qrUrl = computed(() =>
+  pairing.value ? `${connectorsUrl}/api/connectors/device-pairing/qr?url=${encodeURIComponent(pairing.value.url)}` : ''
+)
+
+async function create() {
+  creating.value = true
+  error.value = ''
+  try {
+    pairing.value = await jsonFetch(`${connectorsUrl}/api/connectors/device-pairing`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    })
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : String(err)
+  } finally {
+    creating.value = false
+  }
+}
+
+async function copy(value: string) {
+  try {
+    await navigator.clipboard?.writeText(value)
+  } catch { /* clipboard not available in some contexts */ }
+}
 </script>
-<style scoped>.pairing-qr{width:100%;max-width:260px;background:white;border-radius:18px;padding:14px}</style>
+<style scoped>
+.pairing-qr {
+  width: 100%;
+  max-width: 260px;
+  background: white;
+  border-radius: 18px;
+  padding: 14px;
+}
+</style>

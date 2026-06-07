@@ -7,8 +7,10 @@ from typing import Any
 from uuid import UUID
 
 import asyncpg
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+import logging
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from .analog import AnalogResult, process_analog_input
@@ -16,9 +18,28 @@ from .retention import ReviewState, desirable_difficulty, interleave_plan, remin
 from .routines import recommended_routines
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://personal_os:personal_os@localhost:5432/personal_os")
+log = logging.getLogger("study-companion-service")
 app = FastAPI(title="Personal OS Study Companion", version="0.9.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 _pool: asyncpg.Pool | None = None
+
+
+@app.exception_handler(asyncpg.exceptions.PostgresError)
+async def _pg_error(_request: Request, exc: asyncpg.exceptions.PostgresError) -> JSONResponse:
+    log.exception("database error: %s", exc)
+    return JSONResponse(status_code=500, content={
+        "error": {"code": "database_error", "message": f"Database operation failed: {type(exc).__name__}"}
+    })
+
+
+@app.exception_handler(Exception)
+async def _generic_error(_request: Request, exc: Exception) -> JSONResponse:
+    if isinstance(exc, HTTPException):
+        raise exc
+    log.exception("unhandled error: %s", exc)
+    return JSONResponse(status_code=500, content={
+        "error": {"code": "internal_error", "message": "An unexpected error occurred. Check study-companion-service logs."}
+    })
 
 
 class TextCapture(BaseModel):
@@ -291,13 +312,12 @@ async def create_reading_item(conn: asyncpg.Connection, device_id: UUID, candida
 async def create_entity(conn: asyncpg.Connection, module_id: str, entity_type: str, device_id: UUID) -> UUID:
     return await conn.fetchval(
         """
-        INSERT INTO entities(module_id, entity_type, owner_device_id, created_by_device_id, updated_by_device_id, sync_strategy)
-        VALUES($1,$2,$3,$3,$3,$4) RETURNING id
+        INSERT INTO entities(module_id, entity_type, created_by_device)
+        VALUES($1,$2,$3) RETURNING id
         """,
         module_id,
         entity_type,
         device_id,
-        "crdt_text" if entity_type == "note" else "field_merge",
     )
 
 
@@ -308,7 +328,7 @@ async def ensure_device(conn: asyncpg.Connection, device_key: str) -> UUID:
     return await conn.fetchval(
         """
         INSERT INTO devices(profile_id, device_key, name, kind, platform, last_seen_at)
-        VALUES($1,$2,$2,'service','server',now())
+        VALUES($1,$2,$2,'server','server',now())
         ON CONFLICT(device_key) DO UPDATE SET last_seen_at=now()
         RETURNING id
         """,

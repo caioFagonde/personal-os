@@ -28,7 +28,7 @@ class CaptureCommand:
 
     @property
     def is_delegation(self) -> bool:
-        return bool(self.target and self.target not in {"self", "me"})
+        return bool(self.target and self.target not in {"self", "me", "note", "task", "todo", "capture"})
 
 
 def parse_capture_command(text: str, now: datetime | None = None) -> CaptureCommand:

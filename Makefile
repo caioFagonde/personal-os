@@ -1,7 +1,7 @@
 SHELL := /usr/bin/env bash
 COMPOSE := docker compose --env-file .env
 
-.PHONY: install doctor doctor-full up down up-research up-maps up-automation up-digital-twin up-capture up-study-companion up-connectors logs backup restore mobile desktop test test-backend test-phase5 test-phase6 test-phase8 test-phase9 test-phase10 test-frontend test-mobile test-desktop lint format nuke migrate seed
+.PHONY: install doctor doctor-full certify-v1 up down up-research up-maps up-automation up-digital-twin up-capture up-study-companion up-connectors logs backup restore mobile desktop test test-backend test-phase5 test-phase6 test-phase8 test-phase9 test-phase10 test-frontend test-mobile test-desktop lint format nuke migrate seed
 
 install:
 	./scripts/bootstrap.sh
@@ -11,6 +11,9 @@ doctor:
 
 doctor-full:
 	./scripts/doctor-full.sh
+
+certify-v1:
+	./scripts/certify/v1-local-smoke.sh
 
 up:
 	$(COMPOSE) --profile core up -d --build

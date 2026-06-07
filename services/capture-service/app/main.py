@@ -7,8 +7,10 @@ from typing import Any
 from uuid import UUID
 
 import asyncpg
-from fastapi import FastAPI, HTTPException
+import logging
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from .delegation import Contact, ContactChannel, DelegationRule, build_delegation_messages
@@ -19,9 +21,28 @@ DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://personal_os:personal
 DEFAULT_SECRETARY_EMAIL = os.environ.get("SECRETARY_EMAIL", "")
 DEFAULT_SECRETARY_WHATSAPP = os.environ.get("SECRETARY_WHATSAPP", "")
 WHATSAPP_PROVIDER = os.environ.get("WHATSAPP_PROVIDER", "cloud_api")
+log = logging.getLogger("capture-service")
 app = FastAPI(title="Personal OS Capture Service", version="0.9.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 _pool: asyncpg.Pool | None = None
+
+
+@app.exception_handler(asyncpg.exceptions.PostgresError)
+async def _pg_error(_request: Request, exc: asyncpg.exceptions.PostgresError) -> JSONResponse:
+    log.exception("database error: %s", exc)
+    return JSONResponse(status_code=500, content={
+        "error": {"code": "database_error", "message": f"Database operation failed: {type(exc).__name__}"}
+    })
+
+
+@app.exception_handler(Exception)
+async def _generic_error(_request: Request, exc: Exception) -> JSONResponse:
+    if isinstance(exc, HTTPException):
+        raise exc
+    log.exception("unhandled error: %s", exc)
+    return JSONResponse(status_code=500, content={
+        "error": {"code": "internal_error", "message": "An unexpected error occurred. Check capture-service logs."}
+    })
 
 
 class CaptureCreate(BaseModel):
@@ -105,7 +126,7 @@ async def create_capture(payload: CaptureCreate) -> dict[str, Any]:
             payload.source_kind,
             payload.source_id,
             payload.text,
-            json.dumps(command.__dict__),
+            json.dumps(command.__dict__, default=str),
             fingerprint,
         )
         task = await upsert_task_from_capture(conn, device_id, capture["id"], title, command)
@@ -224,6 +245,8 @@ async def routines() -> list[dict[str, str]]:
 
 async def upsert_task_from_capture(conn: asyncpg.Connection, device_id: UUID, capture_id: str, title: str, command) -> asyncpg.Record:
     status = initial_task_status(command.target)
+    non_contact_targets = {"self", "me", "note", "task", "todo", "capture"}
+    assignee = command.target if command.target and command.target not in non_contact_targets else None
     row = await conn.fetchrow(
         """
         INSERT INTO tasks(device_id,title,body,status,assignee_key,due_at,follow_up_at,priority,tags,source_kind,source_id)
@@ -235,7 +258,7 @@ async def upsert_task_from_capture(conn: asyncpg.Connection, device_id: UUID, ca
         title,
         command.body,
         status,
-        command.target,
+        assignee,
         command.due_at,
         follow_up_at(command.due_at),
         priority_to_rank(command.priority),
@@ -301,10 +324,22 @@ async def load_contact(conn: asyncpg.Connection, key: str) -> Contact:
             await conn.execute("INSERT INTO contact_channels(contact_key, channel, address, verified) VALUES('secretary','whatsapp',$1,true) ON CONFLICT DO NOTHING", DEFAULT_SECRETARY_WHATSAPP)
         row = await conn.fetchrow("SELECT key, display_name FROM contacts WHERE key=$1", key)
     if not row:
-        raise HTTPException(status_code=404, detail=f"contact {key} not found")
+        raise HTTPException(status_code=404, detail={
+            "code": "contact_not_found",
+            "message": f"Contact '{key}' not found.",
+            "action": "Create the contact in the database or set SECRETARY_EMAIL / SECRETARY_WHATSAPP in .env and restart capture-service."
+        })
     channel_rows = await conn.fetch("SELECT channel, address, verified, metadata FROM contact_channels WHERE contact_key=$1", key)
     if not channel_rows:
-        raise HTTPException(status_code=409, detail=f"contact {key} has no channels configured")
+        env_hint = []
+        if key == "secretary":
+            env_hint = ["SECRETARY_EMAIL", "SECRETARY_WHATSAPP"]
+        raise HTTPException(status_code=409, detail={
+            "code": "missing_channels",
+            "message": f"Contact '{key}' has no communication channels configured.",
+            "required_env": env_hint,
+            "action": f"Set {' and/or '.join(env_hint) if env_hint else 'channel addresses'} in .env and restart capture-service."
+        })
     return Contact(key=row["key"], display_name=row["display_name"], channels=[ContactChannel(c["channel"], c["address"], c["verified"], c["metadata"] or {}) for c in channel_rows])
 
 
@@ -315,7 +350,7 @@ async def ensure_device(conn: asyncpg.Connection, device_key: str) -> UUID:
     return await conn.fetchval(
         """
         INSERT INTO devices(profile_id, device_key, name, kind, platform, last_seen_at)
-        VALUES($1,$2,$2,'service','server',now())
+        VALUES($1,$2,$2,'server','server',now())
         ON CONFLICT(device_key) DO UPDATE SET last_seen_at=now()
         RETURNING id
         """,
