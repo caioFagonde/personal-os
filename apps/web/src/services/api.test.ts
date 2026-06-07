@@ -27,10 +27,12 @@ describe('api service helpers', () => {
     const form = new FormData()
     form.set('title', 'Paper')
     await expect(uploadFile('http://example.test/upload', form)).resolves.toEqual({ uploaded: true })
-    const init = fetchMock.mock.calls[0][1] as RequestInit
-    expect(init.method).toBe('POST')
-    expect(init.body).toBe(form)
-    expect(init.headers).not.toHaveProperty('content-type')
+    const calls = fetchMock.mock.calls as unknown as Array<[RequestInfo | URL, RequestInit | undefined]>
+    const init = calls[0]?.[1]
+    expect(init).toBeDefined()
+    expect(init?.method).toBe('POST')
+    expect(init?.body).toBe(form)
+    expect(init?.headers).not.toHaveProperty('content-type')
   })
 
   it('retries JSON requests after refresh on 401', async () => {

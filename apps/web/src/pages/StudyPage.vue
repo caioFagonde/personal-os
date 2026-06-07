@@ -26,12 +26,13 @@
 </template>
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import type { QTableColumn } from 'quasar'
 import { deviceKey, jsonFetch, moduleUrl } from '../services/api'
 const error = ref('')
 const items = ref<any[]>([])
 const kinds = ['reading', 'course', 'paper', 'flashcard_set', 'practice', 'project']
 const draft = ref({ title: '', source_ref: '', kind: 'reading', priority: 3 })
-const columns = [
+const columns: QTableColumn[] = [
   { name: 'title', label: 'Title', field: 'title', align: 'left' },
   { name: 'kind', label: 'Kind', field: 'kind' },
   { name: 'status', label: 'Status', field: 'status' },

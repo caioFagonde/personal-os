@@ -13,9 +13,10 @@
 </template>
 <script setup lang="ts">
 import { ref } from 'vue'
+import type { QTableColumn } from 'quasar'
 import { clearSynced, enqueueOfflineMutation, loadOfflineQueue } from '../services/offline-queue'
 const rows = ref<any[]>([])
-const columns = [
+const columns: QTableColumn[] = [
   { name: 'status', label: 'Status', field: 'status', align: 'left' },
   { name: 'method', label: 'Method', field: 'method', align: 'left' },
   { name: 'url', label: 'URL', field: 'url', align: 'left' },

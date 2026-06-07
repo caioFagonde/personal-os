@@ -16,11 +16,12 @@
 </template>
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import type { QTableColumn } from 'quasar'
 import { deviceKey, jsonFetch, moduleUrl } from '../services/api'
 const error = ref(''); const memories = ref<any[]>([]); const tagText = ref('')
 const types = ['poi', 'route', 'area', 'field_note', 'anchor']
 const draft = ref({ title: '', description: '', latitude: -23.5505, longitude: -46.6333, memory_type: 'poi' })
-const columns = [
+const columns: QTableColumn[] = [
   { name: 'title', label: 'Title', field: 'title', align: 'left' },
   { name: 'memory_type', label: 'Type', field: 'memory_type' },
   { name: 'latitude', label: 'Lat', field: 'latitude' },

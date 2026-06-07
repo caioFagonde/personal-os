@@ -146,3 +146,6 @@ data/maps/*.mbtiles
 data/maps/*.pmtiles
 data/maps/*.osm.pbf
 data/maps/*.gpkg
+# Local GitHub Actions log captures
+latest_commit_logs.txt
+gh-logs.sh
