@@ -194,3 +194,7 @@ release-readiness:
 
 publish-release:
 	./scripts/release/publish-github-release.sh
+
+.PHONY: doctor-qdrant
+doctor-qdrant:
+	./scripts/doctor-qdrant.sh

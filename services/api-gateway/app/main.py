@@ -132,6 +132,35 @@ class SettingPatch(BaseModel):
     value: Any
 
 
+def json_value(value: Any, default: Any = None) -> Any:
+    """Decode asyncpg JSON/JSONB values defensively.
+
+    asyncpg commonly returns json/jsonb as strings unless a custom codec is
+    registered. Some tests/future drivers may return decoded dict/list values.
+    API handlers should tolerate both forms.
+    """
+    if value is None:
+        return default
+    if isinstance(value, (dict, list, bool, int, float)):
+        return value
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            return default if default is not None else value
+    return value
+
+
+def list_value(value: Any) -> list[Any]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    if isinstance(value, tuple):
+        return list(value)
+    return list(value) if not isinstance(value, str) else [value]
+
+
 async def pool() -> asyncpg.Pool:
     if _pool is None:
         raise RuntimeError("database pool not initialized")
@@ -353,17 +382,19 @@ async def list_modules(principal: Principal = Depends(active_principal)) -> list
         )
     out: list[ModuleHealth] = []
     for row in rows:
-        manifest = dict(row["manifest"])
+        manifest = json_value(row["manifest"], {}) or {}
+        routes = json_value(row["routes"], {}) or {}
+        sync_manifest = manifest.get("sync", {}) if isinstance(manifest, dict) else {}
         out.append(
             ModuleHealth(
                 id=row["id"],
                 name=row["name"],
                 version=row["version"],
                 health=row["health"],
-                routes=dict(row["routes"]),
-                permissions=list(row["permissions"]),
-                events={"publishes": list(row["publishes"]), "subscribes": list(row["subscribes"])},
-                sync={"enabled": row["sync_enabled"], "strategy": manifest.get("sync", {}).get("strategy", "local-first")},
+                routes=routes if isinstance(routes, dict) else {},
+                permissions=list_value(row["permissions"]),
+                events={"publishes": list_value(row["publishes"]), "subscribes": list_value(row["subscribes"])},
+                sync={"enabled": row["sync_enabled"], "strategy": sync_manifest.get("strategy", "local-first")},
             )
         )
     return out
@@ -377,7 +408,8 @@ async def get_module(module_id: str, principal: Principal = Depends(active_princ
         row = await conn.fetchrow("SELECT manifest FROM modules WHERE id = $1", module_id)
     if not row:
         raise HTTPException(status_code=404, detail="module not found")
-    return dict(row["manifest"])
+    manifest = json_value(row["manifest"], {}) or {}
+    return manifest if isinstance(manifest, dict) else {"raw": manifest}
 
 
 @app.post("/api/modules/rescan")
@@ -397,7 +429,7 @@ async def settings(principal: Principal = Depends(active_principal)) -> dict[str
         "local_first": True,
         "mesh_supported": True,
         "modules_dir": str(MODULES_DIR),
-        "settings": {r["key"]: r["value"] for r in rows},
+        "settings": {r["key"]: json_value(r["value"]) for r in rows},
     }
 
 

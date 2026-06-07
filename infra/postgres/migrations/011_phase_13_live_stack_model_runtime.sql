@@ -35,27 +35,57 @@ CREATE TABLE IF NOT EXISTS release_publish_jobs (
 );
 CREATE INDEX IF NOT EXISTS idx_release_publish_jobs_status ON release_publish_jobs(status, created_at DESC);
 
-INSERT INTO modules(id, name, version, description, routes, permissions, events, storage_tables, sync_enabled, sync_strategy, installed, health)
+INSERT INTO modules(
+  id,
+  name,
+  version,
+  description,
+  manifest,
+  installed,
+  health,
+  routes,
+  permissions,
+  publishes,
+  subscribes,
+  sync_enabled,
+  storage_tables,
+  updated_at
+)
 VALUES(
   'model-runtime',
   'Model Runtime',
   '0.13.0',
   'Certified OCR, object detection, transcription, and multimodal runtime bridge.',
+  '{
+    "id": "model-runtime",
+    "name": "Model Runtime",
+    "version": "0.13.0",
+    "description": "Certified OCR, object detection, transcription, and multimodal runtime bridge.",
+    "routes": {"web": "/model-runtime", "api": "/api/model-runtime"},
+    "permissions": ["model_runtime:read", "model_runtime:write"],
+    "events": {"publishes": ["model-runtime.asset.processed"], "subscribes": ["analog.capture.created"]},
+    "storage": {"tables": ["model_runtime_invocations"]},
+    "sync": {"enabled": true, "strategy": "local-first"}
+  }'::jsonb,
+  true,
+  'ok',
   '{"web":"/model-runtime","api":"/api/model-runtime"}'::jsonb,
   ARRAY['model_runtime:read','model_runtime:write'],
-  '{"publishes":["model-runtime.asset.processed"],"subscribes":["analog.capture.created"]}'::jsonb,
+  ARRAY['model-runtime.asset.processed'],
+  ARRAY['analog.capture.created'],
+  true,
   ARRAY['model_runtime_invocations'],
-  true,
-  'local-first',
-  true,
-  'ok'
+  now()
 )
 ON CONFLICT(id) DO UPDATE SET
   version=EXCLUDED.version,
   description=EXCLUDED.description,
+  manifest=EXCLUDED.manifest,
   routes=EXCLUDED.routes,
   permissions=EXCLUDED.permissions,
-  events=EXCLUDED.events,
+  publishes=EXCLUDED.publishes,
+  subscribes=EXCLUDED.subscribes,
+  sync_enabled=EXCLUDED.sync_enabled,
   storage_tables=EXCLUDED.storage_tables,
   installed=true,
   health='ok',

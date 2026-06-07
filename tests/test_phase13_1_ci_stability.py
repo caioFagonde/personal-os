@@ -17,7 +17,7 @@ def test_quasar_index_has_entry_point_marker():
     index = (ROOT / 'apps/web/index.html').read_text()
     assert '<body>' in index
     assert '<!-- quasar:entry-point -->' in index
-    assert '<div id="q-app"></div>' in index
+    assert '<div id="q-app"></div>' not in index
 
 
 def test_workflows_do_not_use_invalid_python_module_invocation():

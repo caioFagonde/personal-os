@@ -20,6 +20,7 @@ key_generators = {
     "DEVICE_SIGNING_SECRET": lambda: secrets.token_hex(32),
     "COMMAND_SIGNING_SECRET": lambda: secrets.token_hex(32),
     "N8N_WEBHOOK_SECRET": lambda: secrets.token_hex(32),
+    "SEARXNG_SECRET": lambda: secrets.token_hex(32),
     "TOKEN_ENCRYPTION_KEY": lambda: base64.urlsafe_b64encode(secrets.token_bytes(32)).decode(),
     "SERVICE_TOKEN_SECRET": lambda: secrets.token_hex(32),
 }

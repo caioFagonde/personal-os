@@ -26,6 +26,7 @@ volumes:
   loki_data:
   otel_data:
   tailscale_state:
+  n8n_data:
 
 services:
   postgres:
@@ -400,7 +401,8 @@ services:
 
   web:
     build:
-      context: ./apps/web
+      context: .
+      dockerfile: apps/web/Dockerfile
     container_name: personal-os-web
     profiles: ["apps", "full"]
     <<: *restart
@@ -436,6 +438,9 @@ services:
       - "6333:6333"
     volumes:
       - qdrant_data:/qdrant/storage
+    # The upstream image has changed its available shell utilities across tags.
+    # Do not gate the whole full-stack boot on an in-container curl/wget check.
+    # Runtime readiness is validated by scripts/doctor-qdrant.sh and service-level retries.
     networks: [personal_os_net]
 
   ollama:
@@ -477,7 +482,7 @@ services:
     ports:
       - "8088:8080"
     volumes:
-      - ./data/maps:/data:ro
+      - ./data/maps:/data
     networks: [personal_os_net]
 
   n8n:
@@ -495,8 +500,12 @@ services:
       DB_POSTGRESDB_DATABASE: ${POSTGRES_DB:-personal_os}
       DB_POSTGRESDB_USER: ${POSTGRES_USER:-personal_os}
       DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      DB_TABLE_PREFIX: n8n_
+      N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: "true"
     ports:
       - "5678:5678"
+    volumes:
+      - n8n_data:/home/node/.n8n
     depends_on:
       postgres:
         condition: service_healthy
@@ -521,8 +530,10 @@ services:
     <<: *restart
     ports:
       - "8087:8080"
+    environment:
+      SEARXNG_SECRET: ${SEARXNG_SECRET:?SEARXNG_SECRET must be set}
     volumes:
-      - ./infra/searxng:/etc/searxng:ro
+      - ./infra/searxng:/etc/searxng
     networks: [personal_os_net]
 
   prometheus:

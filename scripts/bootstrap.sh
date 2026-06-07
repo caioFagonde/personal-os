@@ -78,14 +78,31 @@ if [[ "$MODE" != "core" ]]; then
 fi
 
 info "Auth smoke test"
-AUTH_TOKEN="$(curl -fsS -X POST "http://localhost:${API_GATEWAY_PORT:-8080}/api/devices/register" \
+AUTH_PAYLOAD='{"device_key":"bootstrap-cli","name":"Bootstrap CLI","kind":"desktop","platform":"linux"}'
+AUTH_RESPONSE="$(curl -fsS -X POST "http://localhost:${API_GATEWAY_PORT:-8080}/api/devices/register" \
   -H 'content-type: application/json' \
-  -d '{"device_key":"bootstrap-cli","name":"Bootstrap CLI","kind":"desktop","platform":"linux"}' \
-  | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])' 2>/dev/null || true)"
+  -d "${AUTH_PAYLOAD}" 2>/tmp/personal-os-auth-smoke.err || true)"
+AUTH_TOKEN="$(python3 -c 'import json,sys; data=json.load(sys.stdin); print(data.get("access_token", ""))' \
+  <<<"${AUTH_RESPONSE}" 2>/dev/null || true)"
 if [[ -n "${AUTH_TOKEN}" ]]; then
-  curl -fsS -H "authorization: Bearer ${AUTH_TOKEN}" "http://localhost:${API_GATEWAY_PORT:-8080}/api/modules" >/dev/null && ok "Gateway auth boundary healthy" || warn "Authenticated module request failed"
+  if curl -fsS -H "authorization: Bearer ${AUTH_TOKEN}" "http://localhost:${API_GATEWAY_PORT:-8080}/api/modules" >/dev/null; then
+    ok "Gateway auth boundary healthy"
+  else
+    warn "Authenticated module request failed; recent API gateway logs follow"
+    docker compose --env-file .env logs --tail=80 api-gateway || true
+  fi
 else
   warn "Could not mint bootstrap auth token"
+  if [[ -s /tmp/personal-os-auth-smoke.err ]]; then
+    warn "curl error:"
+    sed 's/^/  /' /tmp/personal-os-auth-smoke.err || true
+  fi
+  if [[ -n "${AUTH_RESPONSE}" ]]; then
+    warn "auth response:"
+    printf '%s\n' "${AUTH_RESPONSE}" | sed 's/^/  /' || true
+  fi
+  warn "recent API gateway logs follow"
+  docker compose --env-file .env logs --tail=80 api-gateway || true
 fi
 
 TS_IP=""
@@ -113,9 +130,9 @@ Tailscale IPv4: ${TS_IP:-not detected}
 
 Next:
   make logs
-  TOKEN=$(curl -fsS -X POST http://localhost:${API_GATEWAY_PORT:-8080}/api/devices/register -H 'content-type: application/json' -d '{"device_key":"cli","name":"CLI","kind":"desktop","platform":"linux"}' | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
-  curl -H "authorization: Bearer $TOKEN" http://localhost:${API_GATEWAY_PORT:-8080}/api/modules
-  curl -H "authorization: Bearer $TOKEN" http://localhost:${API_GATEWAY_PORT:-8080}/api/proxy/sync/api/sync/health
+  TOKEN=\$(curl -fsS -X POST http://localhost:${API_GATEWAY_PORT:-8080}/api/devices/register -H 'content-type: application/json' -d '{"device_key":"cli","name":"CLI","kind":"desktop","platform":"linux"}' | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
+  curl -H "authorization: Bearer \$TOKEN" http://localhost:${API_GATEWAY_PORT:-8080}/api/modules
+  curl -H "authorization: Bearer \$TOKEN" http://localhost:${API_GATEWAY_PORT:-8080}/api/proxy/sync/api/sync/health
 
 Open onboarding:
   http://localhost:${WEB_PORT:-9000}/onboarding
