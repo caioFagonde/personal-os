@@ -436,9 +436,6 @@ services:
       - "6333:6333"
     volumes:
       - qdrant_data:/qdrant/storage
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6333/healthz"]
-      <<: *health
     networks: [personal_os_net]
 
   ollama:
@@ -469,7 +466,7 @@ services:
       - "8090:8090"
     depends_on:
       qdrant:
-        condition: service_healthy
+        condition: service_started
     networks: [personal_os_net]
 
   tileserver:
@@ -550,7 +547,7 @@ services:
     volumes:
       - grafana_data:/var/lib/grafana
       - ./infra/observability/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./infra/observability/grafana/dashboards:/etc/grafana/provisioning/dashboards/json:ro
+      - ./infra/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
     networks: [personal_os_net]
 
   loki:

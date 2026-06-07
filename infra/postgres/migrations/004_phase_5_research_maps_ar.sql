@@ -28,9 +28,11 @@ CREATE TABLE IF NOT EXISTS research_search_results (
     license TEXT,
     abstract TEXT,
     raw JSONB NOT NULL DEFAULT '{}',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE(run_id, source, COALESCE(doi, ''), COALESCE(landing_url, ''), title)
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_research_search_results_dedupe
+    ON research_search_results (run_id, source, COALESCE(doi, ''), COALESCE(landing_url, ''), title);
 
 CREATE TABLE IF NOT EXISTS research_documents (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

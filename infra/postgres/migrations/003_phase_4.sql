@@ -67,8 +67,8 @@ VALUES
   ('security.access_token_ttl_seconds', '900'::jsonb),
   ('security.refresh_token_ttl_days', '30'::jsonb),
   ('security.auth_required_recommended', 'true'::jsonb),
-  ('apps.mobile.package_id', 'io.personalos.mobile'::jsonb),
-  ('apps.desktop.bundle_id', 'io.personalos.desktop'::jsonb),
+  ('apps.mobile.package_id', to_jsonb('io.personalos.mobile'::text)),
+  ('apps.desktop.bundle_id', to_jsonb('io.personalos.desktop'::text)),
   ('ci.coverage.backend_pure_gate', '100'::jsonb),
   ('ci.coverage.frontend_gate', '90'::jsonb)
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now();
