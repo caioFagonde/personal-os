@@ -3,10 +3,12 @@ import pytest
 from app.runtime import (
     OCRBlock,
     Detection,
+    ProviderState,
     TranscriptSegment,
     classify_asset,
     detect_runtime_health,
     extension_for,
+    get_provider_catalog,
     heuristic_detect,
     heuristic_ocr,
     heuristic_transcribe,
@@ -104,3 +106,80 @@ def test_runtime_health_modes(monkeypatch):
     monkeypatch.setenv("EXTERNALX_READY", "true")
     health = detect_runtime_health()
     assert any(r["name"] == "object_detection" and r["available"] for r in health["runtimes"])
+
+
+def test_demo_mode_labeling():
+    env = {"OCR_PROVIDER": "heuristic", "VISION_PROVIDER": "heuristic", "AUDIO_PROVIDER": "heuristic"}
+    health = detect_runtime_health(env)
+    assert health["demo_mode"] is True
+    assert health["production_ready"] is False
+    for rt in health["runtimes"]:
+        assert rt["demo"] is True
+        assert "[DEMO]" in rt["detail"]
+
+
+def test_provider_state_machine():
+    env = {"OCR_PROVIDER": "tesseract", "VISION_PROVIDER": "heuristic", "AUDIO_PROVIDER": "heuristic"}
+    health = detect_runtime_health(env)
+    ocr = next(r for r in health["runtimes"] if r["name"] == "ocr")
+    assert ocr["demo"] is False
+    assert ocr["provider_state"] == "not_installed"
+    assert ocr["available"] is False
+
+    env["TESSERACT_INSTALLED"] = "true"
+    health = detect_runtime_health(env)
+    ocr = next(r for r in health["runtimes"] if r["name"] == "ocr")
+    assert ocr["provider_state"] == "installed"
+
+    env["TESSERACT_CONFIGURED"] = "true"
+    health = detect_runtime_health(env)
+    ocr = next(r for r in health["runtimes"] if r["name"] == "ocr")
+    assert ocr["provider_state"] == "configured"
+
+    env["TESSERACT_READY"] = "true"
+    health = detect_runtime_health(env)
+    ocr = next(r for r in health["runtimes"] if r["name"] == "ocr")
+    assert ocr["provider_state"] == "tested"
+    assert ocr["available"] is True
+
+
+def test_production_ready_flag():
+    env = {
+        "OCR_PROVIDER": "tesseract", "TESSERACT_READY": "true",
+        "VISION_PROVIDER": "yolov8", "YOLOV8_READY": "true",
+        "AUDIO_PROVIDER": "whisper", "WHISPER_READY": "true",
+    }
+    health = detect_runtime_health(env)
+    assert health["production_ready"] is True
+    assert health["demo_mode"] is False
+
+
+def test_mixed_demo_and_production():
+    env = {
+        "OCR_PROVIDER": "heuristic",
+        "VISION_PROVIDER": "yolov8", "YOLOV8_READY": "true",
+        "AUDIO_PROVIDER": "whisper", "WHISPER_READY": "true",
+    }
+    health = detect_runtime_health(env)
+    assert health["demo_mode"] is False
+    assert health["production_ready"] is True
+
+
+def test_provider_catalog():
+    catalog = get_provider_catalog()
+    assert len(catalog) > 0
+    names = {p["name"] for p in catalog}
+    assert "tesseract" in names
+    assert "whisper" in names
+    for p in catalog:
+        assert "state" in p
+        assert "setup_hint" in p
+        assert "requires_download" in p
+        assert p["demo"] is False
+
+
+def test_provider_catalog_reflects_env():
+    env = {"TESSERACT_INSTALLED": "true", "TESSERACT_CONFIGURED": "true"}
+    catalog = get_provider_catalog(env)
+    tess = next(p for p in catalog if p["name"] == "tesseract")
+    assert tess["state"] == "configured"

@@ -177,7 +177,7 @@ release-tauri-signed:
 verify-release-artifacts:
 	./scripts/release/verify-release-artifacts.sh
 
-.PHONY: test-phase13 certify-live-stack certify-physical-sync certify-model-runtime publish-release release-readiness up-model-runtime
+.PHONY: test-phase13 certify-live-stack certify-physical-sync certify-model-runtime certify-model-runtime-smoke publish-release release-readiness up-model-runtime setup-models
 
 up-model-runtime:
 	$(COMPOSE) --profile ai --profile apps up -d --build model-runtime
@@ -194,6 +194,12 @@ certify-physical-sync:
 
 certify-model-runtime:
 	./scripts/certify/model-runtime.sh
+
+certify-model-runtime-smoke:
+	./scripts/certify/model-runtime-smoke.sh
+
+setup-models:
+	./scripts/setup-models.sh
 
 release-readiness:
 	./scripts/certify/release-readiness.py

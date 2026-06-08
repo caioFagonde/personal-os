@@ -8,7 +8,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from .runtime import detect_runtime_health, process_asset
+from .runtime import detect_runtime_health, get_provider_catalog, process_asset
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://personal_os:personal_os@localhost:5432/personal_os")
 app = FastAPI(title="Personal OS Model Runtime", version="0.13.0")
@@ -52,6 +52,11 @@ async def health() -> dict[str, Any]:
 @app.get("/api/model-runtime/runtimes")
 async def runtimes() -> dict[str, Any]:
     return detect_runtime_health()
+
+
+@app.get("/api/model-runtime/providers")
+async def providers() -> dict[str, Any]:
+    return {"providers": get_provider_catalog()}
 
 
 @app.post("/api/model-runtime/process-text")

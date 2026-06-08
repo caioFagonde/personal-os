@@ -14,6 +14,13 @@ class RuntimeMode(str, Enum):
     external = "external"
 
 
+class ProviderState(str, Enum):
+    not_installed = "not_installed"
+    installed = "installed"
+    configured = "configured"
+    tested = "tested"
+
+
 IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "webp", "heic", "bmp"}
 AUDIO_EXTENSIONS = {"wav", "mp3", "m4a", "ogg", "flac"}
 VIDEO_EXTENSIONS = {"mp4", "mov", "webm", "mkv"}
@@ -22,10 +29,20 @@ TEXT_EXTENSIONS = {"txt", "md", "csv", "json"}
 
 
 @dataclass(frozen=True)
+class ProviderInfo:
+    name: str
+    state: ProviderState
+    demo: bool
+    setup_hint: str = ""
+
+
+@dataclass(frozen=True)
 class RuntimeHealth:
     name: str
     mode: RuntimeMode
     available: bool
+    demo: bool = True
+    provider_state: str = "not_installed"
     version: str | None = None
     detail: str = ""
 
@@ -81,21 +98,62 @@ def classify_asset(filename: str, content_type: str | None = None) -> str:
     return "binary"
 
 
+KNOWN_PROVIDERS: dict[str, dict[str, str]] = {
+    "tesseract": {"capability": "ocr", "setup": "Install tesseract-ocr package and set OCR_PROVIDER=tesseract"},
+    "paddleocr": {"capability": "ocr", "setup": "pip install paddleocr (large download ~1.5GB) and set OCR_PROVIDER=paddleocr"},
+    "yolov8": {"capability": "vision", "setup": "pip install ultralytics and set VISION_PROVIDER=yolov8"},
+    "whisper": {"capability": "audio", "setup": "pip install openai-whisper (model download required) and set AUDIO_PROVIDER=whisper"},
+    "whisper-cpp": {"capability": "audio", "setup": "Install whisper.cpp binary and set AUDIO_PROVIDER=whisper-cpp"},
+    "faster-whisper": {"capability": "audio", "setup": "pip install faster-whisper and set AUDIO_PROVIDER=faster-whisper"},
+}
+
+
 def detect_runtime_health(env: dict[str, str] | None = None) -> dict[str, Any]:
     env = env or os.environ
     ocr_provider = env.get("OCR_PROVIDER", "heuristic").lower()
     vision_provider = env.get("VISION_PROVIDER", "heuristic").lower()
     audio_provider = env.get("AUDIO_PROVIDER", "heuristic").lower()
     rows = [
-        RuntimeHealth("ocr", _mode(ocr_provider), _available(ocr_provider), version=env.get("OCR_VERSION"), detail=_detail(ocr_provider)),
-        RuntimeHealth("object_detection", _mode(vision_provider), _available(vision_provider), version=env.get("VISION_VERSION"), detail=_detail(vision_provider)),
-        RuntimeHealth("audio_transcription", _mode(audio_provider), _available(audio_provider), version=env.get("AUDIO_VERSION"), detail=_detail(audio_provider)),
+        RuntimeHealth(
+            "ocr", _mode(ocr_provider), _available(ocr_provider, env),
+            demo=_is_demo(ocr_provider), provider_state=_provider_state(ocr_provider, env).value,
+            version=env.get("OCR_VERSION"), detail=_detail(ocr_provider),
+        ),
+        RuntimeHealth(
+            "object_detection", _mode(vision_provider), _available(vision_provider, env),
+            demo=_is_demo(vision_provider), provider_state=_provider_state(vision_provider, env).value,
+            version=env.get("VISION_VERSION"), detail=_detail(vision_provider),
+        ),
+        RuntimeHealth(
+            "audio_transcription", _mode(audio_provider), _available(audio_provider, env),
+            demo=_is_demo(audio_provider), provider_state=_provider_state(audio_provider, env).value,
+            version=env.get("AUDIO_VERSION"), detail=_detail(audio_provider),
+        ),
     ]
+    all_demo = all(r.demo for r in rows)
     return {
         "status": "ok" if all(r.available for r in rows) else "degraded",
+        "production_ready": not all_demo and all(r.provider_state == "tested" for r in rows if not r.demo),
+        "demo_mode": all_demo,
         "runtimes": [asdict(r) for r in rows],
         "max_bytes": int(env.get("MODEL_RUNTIME_MAX_BYTES", "52428800")),
     }
+
+
+def get_provider_catalog(env: dict[str, str] | None = None) -> list[dict[str, Any]]:
+    env = env or os.environ
+    result = []
+    for name, meta in KNOWN_PROVIDERS.items():
+        state = _provider_state(name, env)
+        result.append({
+            "name": name,
+            "capability": meta["capability"],
+            "state": state.value,
+            "demo": False,
+            "setup_hint": meta["setup"],
+            "requires_download": name in {"paddleocr", "whisper", "faster-whisper", "yolov8"},
+        })
+    return result
 
 
 def _mode(provider: str) -> RuntimeMode:
@@ -106,18 +164,40 @@ def _mode(provider: str) -> RuntimeMode:
     return RuntimeMode.external
 
 
-def _available(provider: str) -> bool:
+def _is_demo(provider: str) -> bool:
+    return provider in {"heuristic", "mock", "fallback"}
+
+
+def _available(provider: str, env: dict[str, str] | None = None) -> bool:
+    env = env or os.environ
     if provider in {"none", "disabled", "off"}:
         return False
     if provider in {"heuristic", "mock", "fallback"}:
         return True
-    # External providers are declared available only when explicitly certified.
-    return os.environ.get(f"{provider.upper()}_READY", "false").lower() in {"1", "true", "yes"}
+    return env.get(f"{provider.upper()}_READY", "false").lower() in {"1", "true", "yes"}
+
+
+def _provider_state(provider: str, env: dict[str, str] | None = None) -> ProviderState:
+    env = env or os.environ
+    if provider in {"none", "disabled", "off"}:
+        return ProviderState.not_installed
+    if provider in {"heuristic", "mock", "fallback"}:
+        return ProviderState.installed
+    installed = env.get(f"{provider.upper()}_INSTALLED", "false").lower() in {"1", "true", "yes"}
+    configured = env.get(f"{provider.upper()}_CONFIGURED", "false").lower() in {"1", "true", "yes"}
+    tested = env.get(f"{provider.upper()}_READY", "false").lower() in {"1", "true", "yes"}
+    if tested:
+        return ProviderState.tested
+    if configured:
+        return ProviderState.configured
+    if installed:
+        return ProviderState.installed
+    return ProviderState.not_installed
 
 
 def _detail(provider: str) -> str:
     if provider in {"heuristic", "mock", "fallback"}:
-        return "deterministic local fallback; replace with certified model provider for production inference"
+        return "[DEMO] Deterministic heuristic fallback — not suitable for production inference. Run scripts/setup-models.sh to install real providers."
     if provider in {"none", "disabled", "off"}:
         return "runtime disabled"
     return "external runtime declared; readiness controlled by provider-specific *_READY flag"
