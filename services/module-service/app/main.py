@@ -104,8 +104,8 @@ class GeoMemoryIn(BaseModel):
     title: str
     description: str | None = None
     memory_type: str = "poi"
-    latitude: float
-    longitude: float
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
     altitude: float | None = None
     tags: list[str] = Field(default_factory=list)
     properties: dict[str, Any] = Field(default_factory=dict)
@@ -122,10 +122,10 @@ class MapDatasetIn(BaseModel):
 
 
 class RoutePlanRequest(BaseModel):
-    from_latitude: float
-    from_longitude: float
-    to_latitude: float
-    to_longitude: float
+    from_latitude: float = Field(ge=-90, le=90)
+    from_longitude: float = Field(ge=-180, le=180)
+    to_latitude: float = Field(ge=-90, le=90)
+    to_longitude: float = Field(ge=-180, le=180)
     profile: str = "walking-default"
 
 
@@ -460,7 +460,7 @@ async def create_geo_memory(payload: GeoMemoryIn) -> dict[str, Any]:
 
 
 @app.get("/api/geospatial/nearby")
-async def nearby(latitude: float = Query(...), longitude: float = Query(...), radius_m: int = Query(1000, ge=1, le=100000)) -> list[dict[str, Any]]:
+async def nearby(latitude: float = Query(..., ge=-90, le=90), longitude: float = Query(..., ge=-180, le=180), radius_m: int = Query(1000, ge=1, le=100000)) -> list[dict[str, Any]]:
     p = await pool()
     async with p.acquire() as conn:
         rows = await conn.fetch(
