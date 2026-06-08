@@ -52,6 +52,28 @@ MICROSOFT_REDIRECT_URI=http://localhost:8080/api/proxy/connectors/api/connectors
             </div>
           </q-expansion-item>
 
+          <q-expansion-item
+            v-if="['obsidian', 'notion', 'trello'].includes(item.id)"
+            icon="mdi-cog-outline"
+            label="Setup contract"
+            header-class="text-accent"
+            dense
+          >
+            <div class="q-pa-sm text-caption" style="color:var(--nexus-muted)">
+              <p>Configure these fields on the connector service. Secret values stay server-side and are never stored in browser localStorage.</p>
+              <q-list dense>
+                <q-item v-for="field in item.config_metadata || []" :key="field.key">
+                  <q-item-section>
+                    <q-item-label><code>{{ field.key }}</code></q-item-label>
+                    <q-item-label caption>{{ field.label }} · {{ field.required ? 'required' : 'optional' }}{{ field.secret ? ' · secret' : '' }}</q-item-label>
+                  </q-item-section>
+                </q-item>
+              </q-list>
+              <p v-if="item.id === 'obsidian'">Exports use relative <code>.md</code> or <code>.markdown</code> paths and are contained inside the configured vault. Markdown links, tags, YAML frontmatter, and timestamp-based Zettelkasten filenames remain compatible.</p>
+              <p v-else>Marketplace actions are dry-run only and do not call the external provider.</p>
+            </div>
+          </q-expansion-item>
+
           <!-- ntfy subscription help -->
           <q-expansion-item
             v-if="item.id === 'ntfy'"
@@ -103,6 +125,10 @@ MICROSOFT_REDIRECT_URI=http://localhost:8080/api/proxy/connectors/api/connectors
             <q-btn v-if="item.id === 'twilio'" outline color="primary" size="sm" label="Dry-run test" @click="testTwilio" />
             <q-btn v-if="item.id === 'ntfy'" outline color="primary" size="sm" label="Dry-run test" @click="testNtfy" />
             <q-btn v-if="item.id === 'tailscale'" outline color="primary" size="sm" label="Check status" @click="checkTailscale" />
+            <q-btn v-if="item.id === 'obsidian'" outline color="primary" size="sm" label="Export dry-run" @click="dryRunObsidianExport" />
+            <q-btn v-if="item.id === 'obsidian'" flat color="primary" size="sm" label="Import dry-run" @click="dryRunObsidianImport" />
+            <q-btn v-if="item.id === 'notion'" outline color="primary" size="sm" label="Page dry-run" @click="dryRunNotionPage" />
+            <q-btn v-if="item.id === 'trello'" outline color="primary" size="sm" label="Card dry-run" @click="dryRunTrelloCard" />
           </div>
         </q-card-actions>
       </q-card>
@@ -155,7 +181,8 @@ import { onMounted, ref, computed } from 'vue'
 import NexusPageHero from '../components/NexusPageHero.vue'
 import { connectorsUrl, jsonFetch } from '../services/api'
 
-type Connector = { id: string; configured: boolean; status: string; message: string }
+type ConfigMetadata = { key: string; label: string; required: boolean; secret: boolean }
+type Connector = { id: string; configured: boolean; status: string; message: string; config_metadata?: ConfigMetadata[] }
 const connectors = ref<Connector[]>([])
 const result = ref<string | null>(null)
 const deviceFlow = ref<any | null>(null)
@@ -196,8 +223,9 @@ function describeConnectorError(error: unknown): string {
     const jsonStart = error.message.indexOf('{')
     if (jsonStart >= 0) {
       const payload = JSON.parse(error.message.slice(jsonStart))
-      const detail = payload.detail ?? payload
+      const detail = payload.detail ?? payload.error ?? payload
       if (detail.required_env) return `${detail.message}\n\nRequired: ${detail.required_env.join(', ')}`
+      if (detail.missing_config) return `${detail.message}\n\nMissing: ${detail.missing_config.join(', ')}`
       if (detail.message) return detail.message
     }
   } catch {}
@@ -262,6 +290,36 @@ async function checkTailscale() {
     result.value = JSON.stringify(data)
   } catch (error) { result.value = describeConnectorError(error) }
 }
+
+async function runDryRun(path: string, payload: Record<string, unknown>) {
+  result.value = null
+  try {
+    const data = await jsonFetch<any>(`${connectorsUrl}${path}`, {
+      method: 'POST',
+      body: JSON.stringify({ ...payload, execute: false }),
+    })
+    result.value = JSON.stringify(data)
+  } catch (error) {
+    result.value = describeConnectorError(error)
+  }
+}
+
+const dryRunObsidianExport = () => runDryRun('/api/connectors/obsidian/export', {
+  relative_path: 'Zettelkasten/202606081200 Personal OS export.md',
+  content: '# Personal OS export\n\nDry-run preview.',
+})
+const dryRunObsidianImport = () => runDryRun('/api/connectors/obsidian/import', {
+  relative_path: 'Zettelkasten/202606081200 Personal OS import.md',
+})
+const dryRunNotionPage = () => runDryRun('/api/connectors/notion/pages/dry-run', {
+  title: 'Personal OS dry-run page',
+  content: 'No external page will be created.',
+})
+const dryRunTrelloCard = () => runDryRun('/api/connectors/trello/cards/dry-run', {
+  title: 'Personal OS dry-run card',
+  description: 'No external card will be created.',
+  labels: [],
+})
 
 onMounted(load)
 </script>

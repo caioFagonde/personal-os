@@ -5,6 +5,7 @@ import json
 import re
 from dataclasses import dataclass
 from email.message import EmailMessage
+from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
@@ -23,6 +24,10 @@ class ProviderStatus:
     status: str
     message: str
     next_action_url: str | None = None
+    required_env: tuple[str, ...] = ()
+    required_any_of: tuple[tuple[str, ...], ...] = ()
+    config_metadata: tuple[dict[str, Any], ...] = ()
+    capabilities: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -31,6 +36,60 @@ class ProviderSendResult:
     status: str
     provider_message_id: str | None
     response: dict[str, Any]
+
+
+CONNECTOR_CONFIG_METADATA: dict[str, tuple[dict[str, Any], ...]] = {
+    "obsidian": (
+        {
+            "key": "OBSIDIAN_VAULT_PATH",
+            "label": "Vault path",
+            "kind": "path",
+            "required": True,
+            "secret": False,
+            "help": "Absolute path to an existing Obsidian vault.",
+        },
+    ),
+    "notion": (
+        {
+            "key": "NOTION_API_TOKEN",
+            "label": "Integration token",
+            "kind": "secret",
+            "required": True,
+            "secret": True,
+            "storage": "server_environment",
+        },
+        {"key": "NOTION_DATABASE_ID", "label": "Default database ID", "kind": "text", "required": False, "secret": False},
+        {"key": "NOTION_PAGE_ID", "label": "Default page ID", "kind": "text", "required": False, "secret": False},
+    ),
+    "trello": (
+        {"key": "TRELLO_API_KEY", "label": "API key", "kind": "secret", "required": True, "secret": True, "storage": "server_environment"},
+        {"key": "TRELLO_API_TOKEN", "label": "API token", "kind": "secret", "required": True, "secret": True, "storage": "server_environment"},
+        {"key": "TRELLO_BOARD_ID", "label": "Board ID", "kind": "text", "required": True, "secret": False},
+        {"key": "TRELLO_LIST_ID", "label": "List ID", "kind": "text", "required": True, "secret": False},
+    ),
+}
+
+
+def validate_obsidian_vault_path(vault_path: str, relative_path: str) -> tuple[Path, Path]:
+    if not vault_path:
+        raise ValueError("OBSIDIAN_VAULT_PATH is required")
+    vault = Path(vault_path).expanduser()
+    if not vault.is_absolute():
+        raise ValueError("OBSIDIAN_VAULT_PATH must be an absolute path")
+    vault = vault.resolve()
+    if not vault.is_dir():
+        raise ValueError("OBSIDIAN_VAULT_PATH must point to an existing directory")
+
+    relative = Path(relative_path)
+    if relative.is_absolute() or not relative.parts or relative.name in {"", ".", ".."}:
+        raise ValueError("Obsidian note path must be a relative Markdown path")
+    if relative.suffix.lower() not in {".md", ".markdown"}:
+        raise ValueError("Obsidian note path must use a Markdown .md or .markdown extension")
+
+    target = (vault / relative).resolve()
+    if target == vault or vault not in target.parents:
+        raise ValueError("Obsidian note path must stay inside the configured vault")
+    return vault, target
 
 
 def normalize_whatsapp_address(number: str) -> str:
@@ -191,4 +250,43 @@ def provider_status_from_env(env: dict[str, str], provider: str) -> ProviderStat
     if provider == "microsoft":
         configured = bool(env.get("MICROSOFT_CLIENT_ID") and env.get("MICROSOFT_CLIENT_SECRET") and env.get("MICROSOFT_REDIRECT_URI"))
         return ProviderStatus("microsoft", configured, configured, "ready" if configured else "needs_oauth_client", "Microsoft OAuth client configured" if configured else "Set MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET, MICROSOFT_REDIRECT_URI")
+    if provider == "obsidian":
+        configured = bool(env.get("OBSIDIAN_VAULT_PATH"))
+        return ProviderStatus(
+            "obsidian",
+            configured,
+            True,
+            "ready" if configured else "needs_configuration",
+            "Obsidian vault path configured" if configured else "Set OBSIDIAN_VAULT_PATH to an absolute vault directory",
+            required_env=("OBSIDIAN_VAULT_PATH",),
+            config_metadata=CONNECTOR_CONFIG_METADATA["obsidian"],
+            capabilities=("export_dry_run", "import_dry_run", "explicit_local_export"),
+        )
+    if provider == "notion":
+        has_target = bool(env.get("NOTION_DATABASE_ID") or env.get("NOTION_PAGE_ID"))
+        configured = bool(env.get("NOTION_API_TOKEN") and has_target)
+        return ProviderStatus(
+            "notion",
+            configured,
+            True,
+            "ready" if configured else "needs_configuration",
+            "Notion integration metadata configured" if configured else "Set NOTION_API_TOKEN and a default database or page ID",
+            required_env=("NOTION_API_TOKEN",),
+            required_any_of=(("NOTION_DATABASE_ID", "NOTION_PAGE_ID"),),
+            config_metadata=CONNECTOR_CONFIG_METADATA["notion"],
+            capabilities=("page_create_dry_run", "page_export_dry_run"),
+        )
+    if provider == "trello":
+        required = ("TRELLO_API_KEY", "TRELLO_API_TOKEN", "TRELLO_BOARD_ID", "TRELLO_LIST_ID")
+        configured = all(env.get(key) for key in required)
+        return ProviderStatus(
+            "trello",
+            configured,
+            True,
+            "ready" if configured else "needs_configuration",
+            "Trello board and list metadata configured" if configured else "Set Trello API key, token, board ID, and list ID",
+            required_env=required,
+            config_metadata=CONNECTOR_CONFIG_METADATA["trello"],
+            capabilities=("card_create_dry_run",),
+        )
     raise ValueError(f"unknown provider: {provider}")

@@ -26,7 +26,13 @@ from .oauth import (
     token_endpoint,
     token_exchange_payload,
 )
-from .providers import provider_status_from_env, publish_ntfy, send_twilio_whatsapp, twilio_message_payload
+from .providers import (
+    provider_status_from_env,
+    publish_ntfy,
+    send_twilio_whatsapp,
+    twilio_message_payload,
+    validate_obsidian_vault_path,
+)
 from .worker import ConnectorWorker, WorkerConfig, run_worker_forever
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://personal_os:personal_os@localhost:5432/personal_os")
@@ -39,6 +45,7 @@ SEND_CONNECTOR_TESTS = os.environ.get("SEND_CONNECTOR_TESTS", "false").lower() i
 CONNECTOR_WORKER_ENABLED = os.environ.get("CONNECTOR_WORKER_ENABLED", "false").lower() in {"1", "true", "yes"}
 CONNECTOR_WORKER_EXECUTE = os.environ.get("CONNECTOR_WORKER_EXECUTE", "false").lower() in {"1", "true", "yes"}
 CONNECTOR_WORKER_INTERVAL_SECONDS = float(os.environ.get("CONNECTOR_WORKER_INTERVAL_SECONDS", "20"))
+PROVIDERS = ("google", "microsoft", "twilio", "ntfy", "tailscale", "obsidian", "notion", "trello")
 
 app = FastAPI(title="Personal OS Connector Service", version="1.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
@@ -64,6 +71,39 @@ class BackupExportRequest(BaseModel):
 
 class DeviceFlowPollRequest(BaseModel):
     device_code: str = Field(min_length=8)
+
+
+class ObsidianExportRequest(BaseModel):
+    relative_path: str = Field(min_length=3, examples=["Zettelkasten/202606081200 Example.md"])
+    content: str = Field(default="", max_length=2_000_000)
+    execute: bool = False
+
+
+class ObsidianImportRequest(BaseModel):
+    relative_path: str = Field(min_length=3, examples=["Zettelkasten/202606081200 Example.md"])
+    execute: bool = False
+
+
+class ObsidianPathValidationRequest(BaseModel):
+    relative_path: str = Field(min_length=3, examples=["Zettelkasten/202606081200 Example.md"])
+
+
+class NotionPageCreateRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=500)
+    content: str = Field(default="", max_length=100_000)
+    execute: bool = False
+
+
+class NotionPageExportRequest(BaseModel):
+    page_id: str | None = None
+    execute: bool = False
+
+
+class TrelloCardCreateRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=500)
+    description: str = Field(default="", max_length=100_000)
+    labels: list[str] = Field(default_factory=list, max_length=50)
+    execute: bool = False
 
 
 
@@ -123,7 +163,7 @@ async def health() -> dict[str, str]:
 @app.get("/api/connectors")
 async def list_connectors() -> dict[str, Any]:
     env = dict(os.environ)
-    statuses = [provider_status_from_env(env, p).__dict__ for p in ["google", "microsoft", "twilio", "ntfy", "tailscale"]]
+    statuses = [provider_status_from_env(env, p).__dict__ for p in PROVIDERS]
     p = await pool()
     async with p.acquire() as conn:
         accounts = await conn.fetch("SELECT provider, account_email, scopes, status, updated_at FROM cloud_accounts ORDER BY provider, updated_at DESC")
@@ -139,7 +179,53 @@ async def list_connectors() -> dict[str, Any]:
 @app.get("/api/connectors/status")
 async def connector_status() -> dict[str, Any]:
     env = dict(os.environ)
-    return {p: provider_status_from_env(env, p).__dict__ for p in ["google", "microsoft", "twilio", "ntfy", "tailscale"]}
+    return {p: provider_status_from_env(env, p).__dict__ for p in PROVIDERS}
+
+
+def missing_connector_config_detail(provider: str, env: dict[str, str] | None = None) -> dict[str, Any]:
+    current_env = dict(os.environ) if env is None else env
+    status = provider_status_from_env(current_env, provider)
+    missing = [key for key in status.required_env if not current_env.get(key)]
+    missing_any_of = [list(group) for group in status.required_any_of if not any(current_env.get(key) for key in group)]
+    return {
+        "code": "connector_missing_configuration",
+        "provider": provider,
+        "status": "needs_configuration",
+        "configured": False,
+        "missing_config": missing,
+        "missing_any_of": missing_any_of,
+        "required_env": list(status.required_env),
+        "required_any_of": [list(group) for group in status.required_any_of],
+        "message": status.message,
+        "action": "configure_server_environment",
+    }
+
+
+def require_connector_config(provider: str) -> dict[str, str]:
+    env = dict(os.environ)
+    if not provider_status_from_env(env, provider).configured:
+        raise HTTPException(status_code=409, detail=missing_connector_config_detail(provider, env))
+    return env
+
+
+def dry_run_only_detail(provider: str, operation: str) -> dict[str, Any]:
+    return {
+        "code": "connector_dry_run_only",
+        "provider": provider,
+        "operation": operation,
+        "status": "dry_run_only",
+        "message": f"{provider.title()} {operation} is a contract-only dry-run and does not perform external writes.",
+        "action": "review_dry_run",
+    }
+
+
+@app.get("/api/connectors/{provider}/setup/status")
+async def provider_setup_status(provider: str) -> dict[str, Any]:
+    try:
+        status = provider_status_from_env(dict(os.environ), provider)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail={"code": "unknown_connector", "provider": provider}) from exc
+    return status.__dict__
 
 
 def missing_oauth_client_detail(provider: str) -> dict[str, Any]:
@@ -391,6 +477,148 @@ async def test_ntfy(payload: ConnectorTestRequest) -> dict[str, Any]:
         return {"status": "dry_run", "provider": "ntfy", "topic": env.get("NTFY_TOPIC")}
     result = await publish_ntfy(base_url=env["NTFY_BASE_URL"], topic=env["NTFY_TOPIC"], message=payload.message, title="Personal OS")
     return {"status": "sent", "provider": "ntfy", "response": result}
+
+
+def validate_obsidian_request_path(env: dict[str, str], relative_path: str) -> Path:
+    try:
+        _, target = validate_obsidian_vault_path(env["OBSIDIAN_VAULT_PATH"], relative_path)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "invalid_obsidian_path",
+                "provider": "obsidian",
+                "status": "invalid_path",
+                "message": str(exc),
+                "action": "choose_relative_markdown_path",
+            },
+        ) from exc
+    return target
+
+
+@app.post("/api/connectors/obsidian/path/validate")
+async def obsidian_path_validate(payload: ObsidianPathValidationRequest) -> dict[str, Any]:
+    env = require_connector_config("obsidian")
+    validate_obsidian_request_path(env, payload.relative_path)
+    return {
+        "status": "valid",
+        "provider": "obsidian",
+        "relative_path": payload.relative_path,
+        "format": "markdown",
+        "contained_in_vault": True,
+    }
+
+
+@app.post("/api/connectors/obsidian/export")
+async def obsidian_export(payload: ObsidianExportRequest) -> dict[str, Any]:
+    env = require_connector_config("obsidian")
+    target = validate_obsidian_request_path(env, payload.relative_path)
+    result = {
+        "status": "dry_run",
+        "provider": "obsidian",
+        "operation": "export",
+        "relative_path": payload.relative_path,
+        "format": "markdown",
+        "content_bytes": len(payload.content.encode("utf-8")),
+        "contained_in_vault": True,
+    }
+    if not payload.execute:
+        return result
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target = validate_obsidian_request_path(env, payload.relative_path)
+    try:
+        with target.open("x", encoding="utf-8") as note:
+            note.write(payload.content)
+    except FileExistsError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "obsidian_note_exists",
+                "provider": "obsidian",
+                "relative_path": payload.relative_path,
+                "message": "Refusing to overwrite an existing Obsidian note.",
+                "action": "choose_new_relative_path",
+            },
+        ) from exc
+    return {**result, "status": "written"}
+
+
+@app.post("/api/connectors/obsidian/import")
+async def obsidian_import(payload: ObsidianImportRequest) -> dict[str, Any]:
+    env = require_connector_config("obsidian")
+    validate_obsidian_request_path(env, payload.relative_path)
+    if payload.execute:
+        raise HTTPException(status_code=409, detail=dry_run_only_detail("obsidian", "import"))
+    return {
+        "status": "dry_run",
+        "provider": "obsidian",
+        "operation": "import",
+        "relative_path": payload.relative_path,
+        "format": "markdown",
+        "contained_in_vault": True,
+        "would_read": True,
+    }
+
+
+@app.post("/api/connectors/notion/pages/dry-run")
+async def notion_page_create_dry_run(payload: NotionPageCreateRequest) -> dict[str, Any]:
+    env = require_connector_config("notion")
+    if payload.execute:
+        raise HTTPException(status_code=409, detail=dry_run_only_detail("notion", "page_create"))
+    target_key = "NOTION_DATABASE_ID" if env.get("NOTION_DATABASE_ID") else "NOTION_PAGE_ID"
+    return {
+        "status": "dry_run",
+        "provider": "notion",
+        "operation": "page_create",
+        "title": payload.title,
+        "content_bytes": len(payload.content.encode("utf-8")),
+        "target": {"kind": "database" if target_key == "NOTION_DATABASE_ID" else "page", "source": target_key},
+        "external_write": False,
+    }
+
+
+@app.post("/api/connectors/notion/export/dry-run")
+async def notion_page_export_dry_run(payload: NotionPageExportRequest) -> dict[str, Any]:
+    env = require_connector_config("notion")
+    if payload.execute:
+        raise HTTPException(status_code=409, detail=dry_run_only_detail("notion", "page_export"))
+    if not payload.page_id and not env.get("NOTION_PAGE_ID"):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "connector_missing_operation_configuration",
+                "provider": "notion",
+                "operation": "page_export",
+                "missing_config": ["NOTION_PAGE_ID"],
+                "message": "Pass page_id or set NOTION_PAGE_ID before exporting a Notion page.",
+                "action": "configure_server_environment",
+            },
+        )
+    return {
+        "status": "dry_run",
+        "provider": "notion",
+        "operation": "page_export",
+        "source": "request" if payload.page_id else "NOTION_PAGE_ID",
+        "format": "structured_markdown",
+        "external_read": False,
+    }
+
+
+@app.post("/api/connectors/trello/cards/dry-run")
+async def trello_card_create_dry_run(payload: TrelloCardCreateRequest) -> dict[str, Any]:
+    require_connector_config("trello")
+    if payload.execute:
+        raise HTTPException(status_code=409, detail=dry_run_only_detail("trello", "card_create"))
+    return {
+        "status": "dry_run",
+        "provider": "trello",
+        "operation": "card_create",
+        "title": payload.title,
+        "description_bytes": len(payload.description.encode("utf-8")),
+        "label_count": len(payload.labels),
+        "target": {"board": "TRELLO_BOARD_ID", "list": "TRELLO_LIST_ID"},
+        "external_write": False,
+    }
 
 
 @app.get("/api/connectors/worker/status")
