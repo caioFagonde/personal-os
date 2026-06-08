@@ -320,7 +320,21 @@ Distinguished demo heuristic fallbacks from real OCR/object/audio providers by a
 
 ## intelligence-layer
 
-No report yet.
+# intelligence-layer report
+
+Status: FAILED
+
+Agent command exited with code 1.
+
+## Git status
+?? .agents/reports/intelligence-layer/
+?? apps/web/src/pages/IntelligencePage.vue
+?? infra/postgres/migrations/013_intelligence_center.sql
+?? modules/intelligence/
+?? services/intelligence-service/
+
+## Diff stat
+
 
 ## backup-update-pipeline
 
@@ -552,3 +566,92 @@ And the import is at line 28. The tests `test_settings_route_exists` and `test_s
 
 Tranche 1 merged cleanly. Of 253 tests, 245 pass (96.8%). The 3 pre-existing failures are unchanged. The 5 new failures are all from test/implementation mismatches in config-validation (4) and a cosmetic gap in ui-foundation (1). Capture-e2e is fully clean. No data loss, no security regressions, no broken imports. The main follow-up work is aligning SettingsPage tests with the actual architecture and adding the missing `optional_service_unavailable` gateway error code.
 
+
+## connector-marketplace
+
+# connector-marketplace report
+
+Status: FAILED
+
+Agent command exited with code 1.
+
+## Git status
+ M apps/web/src/pages/ConnectorsPage.vue
+ M apps/web/src/router/routes.ts
+ M services/connector-service/app/main.py
+?? .agents/reports/connector-marketplace/
+?? apps/web/src/components/ProviderCard.vue
+?? apps/web/src/providers/
+?? tests/test_connector_marketplace.py
+
+## Diff stat
+ apps/web/src/pages/ConnectorsPage.vue  | 294 ++++++++++++++++++++-------------
+ apps/web/src/router/routes.ts          |   1 +
+ services/connector-service/app/main.py |  34 ++++
+ 3 files changed, 214 insertions(+), 115 deletions(-)
+
+
+## obsidian-notion-trello
+
+# Obsidian / Notion / Trello connector report
+
+Date: 2026-06-08
+
+## Summary
+
+Implemented safe connector skeletons and marketplace UX for Obsidian, Notion, and Trello.
+
+- Added provider status, configuration metadata, capabilities, and structured missing-configuration contracts without exposing configured values.
+- Added Obsidian relative Markdown path validation, traversal/symlink escape rejection, dry-run import/export, explicit contained export, and no-overwrite behavior.
+- Added Notion dry-run page creation and structured Markdown export contracts. External execution is rejected.
+- Added Trello dry-run card creation contract. External execution is rejected.
+- Added setup cards and dry-run actions to the Connectors marketplace UI. No provider secrets are stored in browser localStorage.
+- Added Markdown/Zettelkasten compatibility and connector contract documentation.
+
+## Endpoints
+
+- `GET /api/connectors/{provider}/setup/status`
+- `POST /api/connectors/obsidian/path/validate`
+- `POST /api/connectors/obsidian/export`
+- `POST /api/connectors/obsidian/import`
+- `POST /api/connectors/notion/pages/dry-run`
+- `POST /api/connectors/notion/export/dry-run`
+- `POST /api/connectors/trello/cards/dry-run`
+
+## Tests
+
+- PASS: `python3 -m pytest tests/test_providers.py -q` from `services/connector-service` (`7 passed`)
+- PASS: `python3 -m pytest tests/test_obsidian_notion_trello_connectors.py tests/test_phase13_15_connector_oauth_ui_regression.py -q` (`7 passed`)
+- PASS: `python3 -m py_compile services/connector-service/app/main.py services/connector-service/app/providers.py`
+- PASS: `git diff --check`
+- PASS: `./scripts/check-secrets.sh`
+- PARTIAL: `python3 -m pytest tests -q` (`254 passed, 2 skipped, 8 failed`)
+
+The eight root-suite failures are in unrelated existing gateway configuration, release-script, onboarding, and settings contracts outside this task's allowed scope.
+
+- BLOCKED: `docker compose --env-file .env --profile full config`
+
+The isolated worktree has no `.env`; Compose exited with `couldn't find env file`. No environment file was inspected or printed.
+
+- BLOCKED: `pnpm --dir apps/web build`
+
+The worktree has no `node_modules`, so the local Quasar build command is unavailable.
+
+- BLOCKED: full `services/connector-service` test suite
+
+The local Python environment lacks the existing `asyncpg` dependency. The focused provider tests do not require it and pass.
+
+## Acceptance
+
+- PASS: Obsidian, Notion, and Trello appear in connector/marketplace UI.
+- PASS: Missing configuration is structured.
+- PASS: Dry-run paths exist and external writes are disabled by default.
+- PASS: Obsidian writes are constrained to validated Markdown paths inside the configured vault and refuse overwrite.
+- PASS: Connector-focused tests pass.
+- PARTIAL: Repository-wide tests do not fully pass because of eight unrelated failures listed above.
+- PASS: Required report written.
+
+
+## qa-route-endpoint-repair
+
+No report yet.

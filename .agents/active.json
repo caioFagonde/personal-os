@@ -255,21 +255,21 @@
     {
       "id": "intelligence-layer",
       "priority": "p2",
-      "executor": "backend_executor",
-      "title": "Add ethical intelligence center for public/user-authorized sources",
+      "executor": "claude",
+      "title": "Ethical intelligence center for OSINT/news/RSS/search monitoring",
       "allowed_paths": [
-        "modules/intelligence/**",
-        "services/intelligence-service/**",
-        "apps/web/src/pages/IntelligencePage.vue",
-        "apps/web/src/router/routes.ts",
-        "infra/postgres/migrations/**",
-        "docker-compose.yml",
-        "tests/**",
-        "docs/intelligence.md"
+        "services",
+        "modules",
+        "apps/web/src/pages",
+        "apps/web/src/components",
+        "apps/web/src/services",
+        "infra/postgres/migrations",
+        "docs",
+        "tests"
       ],
       "locked_paths": [
-        "apps/web/src/router/routes.ts",
-        "docker-compose.yml"
+        "modules/intelligence",
+        "docs/intelligence.md"
       ],
       "depends_on": [
         "ui-foundation",
@@ -277,15 +277,18 @@
       ],
       "prompt_file": ".agents/tasks/intelligence-layer.md",
       "acceptance": [
-        "Public/user-authorized source policy is explicit",
-        "Keyword monitor scaffold works",
-        "Findings can be saved to Zettelkasten/task if endpoints exist",
-        "No unauthorized surveillance or paywall bypass"
+        "Intelligence route/page exists",
+        "Public OSINT/news/RSS/search monitor model exists",
+        "No unauthorized surveillance or credential harvesting",
+        "SearXNG/RSS source status is represented",
+        "Findings can be saved to Zettelkasten/task conceptually or via safe endpoint",
+        "Smoke tests and docs exist"
       ],
       "tests": [
         "python3 -m pytest tests -q",
         "./scripts/certify/intelligence-smoke.sh"
-      ]
+      ],
+      "branch": "agent/intelligence-layer"
     },
     {
       "id": "backup-update-pipeline",
@@ -355,6 +358,88 @@
         "python3 -m pytest tests -q",
         "./scripts/check-secrets.sh",
         "docker compose --env-file .env --profile full config"
+      ]
+    },
+    {
+      "id": "connector-marketplace",
+      "title": "Connector marketplace and modular install UX",
+      "priority": "p2",
+      "executor": "claude",
+      "branch": "agent/connector-marketplace",
+      "allowed_paths": [
+        "apps/web/src/pages",
+        "apps/web/src/components",
+        "apps/web/src/services",
+        "services/connector-service",
+        "services/api-gateway",
+        "modules",
+        "docs",
+        "tests"
+      ],
+      "locked_paths": [
+        "apps/web/src/pages/ConnectorsPage.vue",
+        "apps/web/src/pages/MarketplacePage.vue"
+      ],
+      "acceptance": [
+        "Marketplace route exists or connector page becomes marketplace-capable",
+        "Provider cards show installed/configured/connected/degraded states",
+        "Google/Microsoft/Twilio/ntfy/Tailscale/AWS/Azure/GitHub/Claude Code cards exist",
+        "Missing config shows setup actions, not raw errors",
+        "Tests and docs updated"
+      ]
+    },
+    {
+      "id": "obsidian-notion-trello",
+      "title": "Obsidian, Notion, and Trello connector skeletons",
+      "priority": "p2",
+      "executor": "codex",
+      "branch": "agent/obsidian-notion-trello",
+      "allowed_paths": [
+        "services/connector-service",
+        "apps/web/src/pages",
+        "apps/web/src/components",
+        "apps/web/src/services",
+        "modules",
+        "docs",
+        "tests"
+      ],
+      "locked_paths": [
+        "services/connector-service/app",
+        "docs/connectors.md"
+      ],
+      "acceptance": [
+        "Obsidian vault path config and dry-run import/export contract exist",
+        "Notion config and dry-run page/export contract exist",
+        "Trello config and dry-run card creation contract exist",
+        "No secrets stored in frontend localStorage",
+        "Structured config errors and tests exist"
+      ]
+    },
+    {
+      "id": "qa-route-endpoint-repair",
+      "title": "QA and repair all routes/endpoints",
+      "priority": "p0",
+      "executor": "claude",
+      "branch": "agent/qa-route-endpoint-repair",
+      "allowed_paths": [
+        "apps/web",
+        "services",
+        "scripts/certify",
+        "tests",
+        "docs",
+        "Makefile"
+      ],
+      "locked_paths": [
+        "scripts/certify",
+        "tests"
+      ],
+      "acceptance": [
+        "Every route has a page",
+        "Every nav link resolves",
+        "Every UI-used endpoint is documented or tested",
+        "Expected config errors are structured, not raw 500s",
+        "Non-destructive smoke script covers core routes/endpoints",
+        "QA report generated"
       ]
     }
   ]

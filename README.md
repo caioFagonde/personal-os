@@ -214,3 +214,11 @@ make release-readiness
 ```
 
 Open `/model-runtime`, `/live-stack`, and `/initial-readiness` in the web UI. See `docs/phase-13-live-stack-model-release.md`.
+
+Sample git template for manual merging of agent worktrees
+
+git merge --no-ff "agent/$task" -m "Merge agent task: $task"
+    python3 -m pytest tests -q
+    ./scripts/check-secrets.sh
+    docker compose --env-file .env --profile full config >/tmp/personal-os-full.yml
+    pnpm --dir apps/web build
