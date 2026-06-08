@@ -2,7 +2,7 @@
   <q-page class="column q-gutter-lg">
     <NexusPageHero eyebrow="1-click operational setup" title="Onboarding Wizard" subtitle="Run the bootstrap script, register this device, connect providers, test sync, subscribe to notifications, pair mobile, then create a backup." />
 
-    <q-stepper v-model="step" vertical color="primary" animated class="nexus-stepper">
+    <q-stepper v-model="step" vertical color="primary" animated class="nexus-stepper glass-card">
       <q-step :name="1" title="Install core" icon="mdi-console" :done="step > 1">
         <p>Run the one-liner bootstrap to start all services:</p>
         <pre class="code-block">./scripts/bootstrap.sh --full</pre>
