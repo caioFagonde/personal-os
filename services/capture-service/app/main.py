@@ -20,7 +20,7 @@ from .tasking import follow_up_at, initial_task_status, priority_to_rank, stable
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://personal_os:personal_os@localhost:5432/personal_os")
 DEFAULT_SECRETARY_EMAIL = os.environ.get("SECRETARY_EMAIL", "crisoliveirasousa73@gmail.com")
 DEFAULT_SECRETARY_WHATSAPP = os.environ.get("SECRETARY_WHATSAPP", "+115944540999")
-WHATSAPP_PROVIDER = os.environ.get("WHATSAPP_PROVIDER", "twillio")
+WHATSAPP_PROVIDER = os.environ.get("WHATSAPP_PROVIDER", "cloud_api")
 log = logging.getLogger("capture-service")
 app = FastAPI(title="Personal OS Capture Service", version="0.9.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
@@ -275,16 +275,23 @@ async def delegate_task(conn: asyncpg.Connection, task_id: UUID, target: str, ch
         raise HTTPException(status_code=404, detail="task not found")
     contact = await load_contact(conn, target)
     rule = DelegationRule(target=target, channels=channels or ["whatsapp", "email"], requires_approval=requires_approval)
-    built = build_delegation_messages(
-        task_id=str(task_id),
-        title=task["title"],
-        body=task["body"] or task["title"],
-        contact=contact,
-        rule=rule,
-        requested_channels=channels,
-        source_note_id=task["source_id"] if task["source_kind"] == "note" else None,
-        whatsapp_provider=WHATSAPP_PROVIDER,
-    )
+    try:
+        built = build_delegation_messages(
+            task_id=str(task_id),
+            title=task["title"],
+            body=task["body"] or task["title"],
+            contact=contact,
+            rule=rule,
+            requested_channels=channels,
+            source_note_id=task["source_id"] if task["source_kind"] == "note" else None,
+            whatsapp_provider=WHATSAPP_PROVIDER,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail={
+            "code": "invalid_delegation_config",
+            "message": str(exc),
+            "action": "Check WHATSAPP_PROVIDER env var. Supported: cloud_api, twilio, twilio_sandbox."
+        })
     rows = []
     for msg in built:
         row = await conn.fetchrow(
@@ -340,9 +347,6 @@ async def load_contact(conn: asyncpg.Connection, key: str) -> Contact:
             "action": "Create the contact in the database or set SECRETARY_EMAIL / SECRETARY_WHATSAPP in .env and restart capture-service."
         })
     channel_rows = await conn.fetch("SELECT channel, address, verified, metadata FROM contact_channels WHERE contact_key=$1", key)
-    # save to debug.txt
-    with open("debug.txt", "a") as f:
-        f.write(f"Loaded contact '{key}': {dict(row)}, channels: {[dict(c) for c in channel_rows]}\n")
     if not channel_rows:
         env_hint = []
         if key == "secretary":
