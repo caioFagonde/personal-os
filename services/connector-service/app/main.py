@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, Response
 from pydantic import BaseModel, Field
 
-from .backup import create_backup_bundle
+from .backup import BackupConfigurationError, backup_setup_status, create_backup_bundle
 from .crypto import encrypt_text
 from .oauth import (
     OAuthConfig,
@@ -456,7 +456,10 @@ async def export_backup(payload: BackupExportRequest) -> dict[str, Any]:
     include = [".env.example", "modules", "docs", "scripts", "infra/postgres/migrations"]
     if payload.include_runtime:
         include += ["data/.gitkeep"]
-    manifest = create_backup_bundle(ROOT_DIR, BACKUP_DIR, include=include)
+    try:
+        manifest = create_backup_bundle(ROOT_DIR, BACKUP_DIR, include=include)
+    except BackupConfigurationError as exc:
+        raise HTTPException(status_code=409, detail={"code": "backup_encryption_required", "message": str(exc), "action": "configure_backup_encryption"}) from exc
     p = await pool()
     async with p.acquire() as conn:
         await conn.execute(
@@ -485,7 +488,10 @@ async def export_and_upload_backup(payload: BackupUploadRequest) -> dict[str, An
     include = [".env.example", "modules", "docs", "scripts", "infra/postgres/migrations"]
     if payload.include_runtime:
         include += ["data/.gitkeep"]
-    manifest = create_backup_bundle(ROOT_DIR, BACKUP_DIR, include=include)
+    try:
+        manifest = create_backup_bundle(ROOT_DIR, BACKUP_DIR, include=include)
+    except BackupConfigurationError as exc:
+        raise HTTPException(status_code=409, detail={"code": "backup_encryption_required", "message": str(exc), "action": "configure_backup_encryption"}) from exc
     p = await pool()
     async with p.acquire() as conn:
         await conn.execute(
@@ -502,6 +508,11 @@ async def export_and_upload_backup(payload: BackupUploadRequest) -> dict[str, An
     worker = ConnectorWorker(p, root_dir=ROOT_DIR, backup_dir=BACKUP_DIR)
     upload = await worker.upload_backup(manifest, provider=payload.provider)
     return {"manifest": manifest.__dict__, "upload": upload}
+
+@app.get("/api/connectors/backup/status")
+async def backup_status() -> dict[str, Any]:
+    return backup_setup_status(dict(os.environ))
+
 
 @app.get("/api/connectors/backup/manifests")
 async def backup_manifests() -> list[dict[str, Any]]:

@@ -1,6 +1,6 @@
 <template>
   <q-page class="column q-gutter-lg">
-    <NexusPageHero eyebrow="Release" title="Release Center" subtitle="Build, sign, verify, and archive Android, desktop, and web release artifacts.">
+    <NexusPageHero eyebrow="Release" title="Release Center" subtitle="Build and verify releases through a backup-first update pipeline with optional ntfy progress.">
       <template #actions>
         <q-btn color="primary" icon="mdi-cloud-upload-outline" label="Export backup" :loading="loading" @click="backup(false)" />
         <q-btn color="secondary" icon="mdi-google-drive" label="Upload Google backup" @click="backup(true, 'google')" />
@@ -49,6 +49,7 @@ const error = ref('')
 const loading = ref(false)
 
 const artifacts = [
+  { id: 'update', icon: 'mdi-update', title: 'Safe update', description: 'Encrypted backup preflight runs before any full-stack rebuild. ntfy progress is sent when configured.', commands: ['./scripts/update.sh --dry-run', './scripts/update.sh', './scripts/rollback-last-update.sh'] },
   { id: 'web', icon: 'mdi-web', title: 'Web', description: 'Static SPA bundle for browser and Capacitor.', commands: ['pnpm --dir apps/web build'] },
   { id: 'android', icon: 'mdi-android', title: 'Android', description: 'Signed APK/AAB when keystore secrets are present.', commands: ['./scripts/release/build-android-signed.sh'] },
   { id: 'desktop', icon: 'mdi-desktop-classic', title: 'Desktop', description: 'Tauri bundle with optional updater/signing metadata.', commands: ['./scripts/release/build-tauri-signed.sh'] },

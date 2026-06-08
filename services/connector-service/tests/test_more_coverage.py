@@ -1,4 +1,5 @@
 import pytest
+from cryptography.fernet import Fernet
 
 from app.backup import validate_restore_manifest
 from app.oauth import (
@@ -84,5 +85,5 @@ def test_default_scope_branches_and_missing_include():
 def test_backup_skips_missing_paths(tmp_path):
     from app.backup import create_backup_bundle
     root = tmp_path / "repo"; root.mkdir()
-    manifest = create_backup_bundle(root, tmp_path / "backups", include=["missing"])
+    manifest = create_backup_bundle(root, tmp_path / "backups", include=["missing"], encryption_key=Fernet.generate_key().decode())
     assert manifest.included_paths == ()
