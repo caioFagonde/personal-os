@@ -1,18 +1,50 @@
 <template>
   <q-page class="column q-gutter-lg">
 
-    <NexusPageHero eyebrow="OAuth · Messaging · Mesh" title="Connectors" subtitle="One-click provider onboarding. Google and Microsoft open a consent window; device-code provides a QR/code fallback. Refresh credentials are encrypted server-side.">
+    <NexusPageHero
+      eyebrow="Marketplace"
+      title="Connector Marketplace"
+      subtitle="Install, configure, and connect providers. OAuth, messaging, infrastructure, AI models, and cloud — all in one place."
+    >
       <template #actions>
         <q-btn color="primary" icon="mdi-refresh" label="Refresh status" :loading="refreshing" @click="load" />
-        <q-btn outline color="primary" icon="mdi-cellphone-key" label="What is device-code?" @click="showDeviceHelp = !showDeviceHelp" />
+        <q-btn outline color="primary" icon="mdi-cellphone-key" label="Device-code login" @click="showDeviceHelp = !showDeviceHelp" />
       </template>
     </NexusPageHero>
 
-    <q-banner v-if="loadError" class="bg-negative text-white" rounded>
-      <template #avatar><q-icon name="mdi-alert-circle-outline" /></template>
-      {{ loadError }}
-    </q-banner>
+    <NexusErrorBanner v-if="loadError" :error="loadError" @dismiss="loadError = ''" />
 
+    <!-- Summary metrics -->
+    <div class="row q-gutter-sm">
+      <MetricCard label="Connected" :value="connectedCount" />
+      <MetricCard label="Needs config" :value="needsConfigCount" />
+      <MetricCard label="Total" :value="allProviders.length" />
+    </div>
+
+    <!-- Filter bar -->
+    <div class="row items-center q-gutter-sm q-mb-sm" style="flex-wrap:wrap">
+      <q-input
+        v-model="searchQuery"
+        outlined
+        dense
+        clearable
+        placeholder="Search providers..."
+        style="min-width:220px;max-width:360px"
+      >
+        <template #prepend><q-icon name="mdi-magnify" /></template>
+      </q-input>
+      <q-btn-toggle
+        v-model="filterState"
+        no-caps
+        rounded
+        unelevated
+        toggle-color="primary"
+        :options="stateFilterOptions"
+        class="filter-toggle"
+      />
+    </div>
+
+    <!-- Device-code help card -->
     <q-card class="glass-card" v-if="showDeviceHelp">
       <q-card-section>
         <div class="text-h6 q-mb-xs">Device-code login</div>
@@ -20,93 +52,60 @@
       </q-card-section>
     </q-card>
 
-    <!-- Provider cards -->
-    <div class="action-grid">
-      <q-card v-for="item in connectors" :key="item.id" class="glass-card quick-card">
-        <q-card-section>
-          <div class="row items-start justify-between no-wrap q-mb-xs">
-            <div class="text-h6 text-capitalize">{{ item.id }}</div>
-            <q-badge :color="badgeColor(item)" :label="item.status" />
-          </div>
-          <p style="color:var(--nexus-muted);font-size:13px;margin:0 0 10px">{{ item.message }}</p>
-
-          <!-- OAuth setup instructions when not configured -->
-          <q-expansion-item
-            v-if="(item.id === 'google' || item.id === 'microsoft') && !item.configured"
-            icon="mdi-cog-outline"
-            label="Setup instructions"
-            header-class="text-accent"
-            dense
+    <!-- Provider cards by category -->
+    <template v-for="(cat, catKey) in categoryGroups" :key="catKey">
+      <div v-if="cat.providers.length" class="q-mt-md">
+        <div class="section-heading q-mb-sm">
+          <q-icon :name="cat.icon" size="16px" class="q-mr-xs" />
+          {{ cat.label }} ({{ cat.providers.length }})
+        </div>
+        <div class="action-grid">
+          <ProviderCard
+            v-for="item in cat.providers"
+            :key="item.manifest.id"
+            :manifest="item.manifest"
+            :status="item.status"
           >
-            <div class="q-pa-sm text-caption" style="color:var(--nexus-muted)">
-              <p>Add the following to your <code>.env</code> and restart <code>connector-service</code>:</p>
-              <pre class="code-block" v-if="item.id === 'google'">GOOGLE_CLIENT_ID=your-client-id
-GOOGLE_CLIENT_SECRET=your-client-secret
-GOOGLE_REDIRECT_URI=http://localhost:8080/api/proxy/connectors/api/connectors/google/callback</pre>
-              <pre class="code-block" v-if="item.id === 'microsoft'">MICROSOFT_CLIENT_ID=your-client-id
-MICROSOFT_CLIENT_SECRET=your-client-secret
-MICROSOFT_TENANT=common
-MICROSOFT_REDIRECT_URI=http://localhost:8080/api/proxy/connectors/api/connectors/microsoft/callback</pre>
-              <p>Register the redirect URI above in your OAuth app console, then run:</p>
-              <pre class="code-block">docker compose --env-file .env restart connector-service</pre>
-            </div>
-          </q-expansion-item>
+            <template #actions="{ status: st, manifest: mf }">
+              <!-- OAuth providers: Connect / Device code -->
+              <template v-if="mf.id === 'google' || mf.id === 'microsoft'">
+                <q-btn
+                  color="primary"
+                  unelevated
+                  size="sm"
+                  :disable="!st.configured"
+                  :label="st.configured ? 'Connect' : 'Configure .env first'"
+                  @click="authorize(mf.id)"
+                />
+                <q-btn
+                  v-if="st.configured"
+                  outline
+                  color="primary"
+                  size="sm"
+                  label="Device code"
+                  @click="startDeviceFlow(mf.id)"
+                />
+              </template>
+              <!-- Twilio: dry-run test -->
+              <q-btn v-if="mf.id === 'twilio'" outline color="primary" size="sm" label="Dry-run test" @click="testTwilio" />
+              <!-- ntfy: dry-run test -->
+              <q-btn v-if="mf.id === 'ntfy'" outline color="primary" size="sm" label="Dry-run test" @click="testNtfy" />
+              <!-- Tailscale: check status -->
+              <q-btn v-if="mf.id === 'tailscale'" outline color="primary" size="sm" label="Check status" @click="checkTailscale" />
+              <!-- Cloud providers: dry-run plan badge -->
+              <q-badge v-if="mf.cloudSafetyNote" color="warning" label="Dry-run plan only" />
+            </template>
+          </ProviderCard>
+        </div>
+      </div>
+    </template>
 
-          <!-- ntfy subscription help -->
-          <q-expansion-item
-            v-if="item.id === 'ntfy'"
-            icon="mdi-bell-outline"
-            label="Mobile subscription"
-            header-class="text-accent"
-            dense
-          >
-            <div class="q-pa-sm text-caption" style="color:var(--nexus-muted)">
-              <p>Install ntfy on your phone (<a href="https://ntfy.sh" target="_blank" rel="noopener">ntfy.sh</a>), then subscribe to the topic configured in <code>NTFY_TOPIC</code>. The base URL is in <code>NTFY_BASE_URL</code>.</p>
-              <p>If you are running a private ntfy server, use your Tailscale IP as the base URL so the phone can reach it over the mesh.</p>
-            </div>
-          </q-expansion-item>
-
-          <!-- Tailscale details -->
-          <div v-if="item.id === 'tailscale' && tailscaleDetail">
-            <q-list dense class="q-mt-xs">
-              <q-item v-if="tailscaleDetail.hostname">
-                <q-item-section>Hostname</q-item-section>
-                <q-item-section side class="text-muted">{{ tailscaleDetail.hostname }}</q-item-section>
-              </q-item>
-              <q-item v-if="tailscaleDetail.ip">
-                <q-item-section>Tailscale IP</q-item-section>
-                <q-item-section side class="text-accent text-weight-bold">{{ tailscaleDetail.ip }}</q-item-section>
-              </q-item>
-            </q-list>
-          </div>
-        </q-card-section>
-
-        <q-card-actions align="between">
-          <div class="row q-gutter-xs">
-            <q-btn
-              v-if="item.id === 'google' || item.id === 'microsoft'"
-              color="primary"
-              unelevated
-              size="sm"
-              :disable="!item.configured"
-              :label="item.configured ? 'Connect' : 'Configure .env first'"
-              @click="authorize(item.id)"
-            />
-            <q-btn
-              v-if="(item.id === 'google' || item.id === 'microsoft') && item.configured"
-              outline
-              color="primary"
-              size="sm"
-              label="Device code"
-              @click="startDeviceFlow(item.id)"
-            />
-            <q-btn v-if="item.id === 'twilio'" outline color="primary" size="sm" label="Dry-run test" @click="testTwilio" />
-            <q-btn v-if="item.id === 'ntfy'" outline color="primary" size="sm" label="Dry-run test" @click="testNtfy" />
-            <q-btn v-if="item.id === 'tailscale'" outline color="primary" size="sm" label="Check status" @click="checkTailscale" />
-          </div>
-        </q-card-actions>
-      </q-card>
-    </div>
+    <NexusEmptyState
+      v-if="filteredProviders.length === 0 && !refreshing"
+      icon="mdi-magnify"
+      message="No providers match your filter."
+      hint="Try adjusting the search or filter settings."
+    />
 
     <!-- Device-code flow panel -->
     <q-card v-if="deviceFlow" class="glass-card">
@@ -126,7 +125,7 @@ MICROSOFT_REDIRECT_URI=http://localhost:8080/api/proxy/connectors/api/connectors
       </q-card-section>
     </q-card>
 
-    <!-- Result panel — shown only when non-empty and actionable -->
+    <!-- Result panel -->
     <q-card class="glass-card" v-if="result">
       <q-card-section>
         <div class="text-h6 q-mb-sm">Result</div>
@@ -153,42 +152,89 @@ MICROSOFT_REDIRECT_URI=http://localhost:8080/api/proxy/connectors/api/connectors
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue'
 import NexusPageHero from '../components/NexusPageHero.vue'
+import NexusErrorBanner from '../components/NexusErrorBanner.vue'
+import NexusEmptyState from '../components/NexusEmptyState.vue'
+import MetricCard from '../components/MetricCard.vue'
+import ProviderCard from '../components/ProviderCard.vue'
 import { connectorsUrl, jsonFetch } from '../services/api'
+import {
+  type ProviderManifest,
+  type ProviderLiveStatus,
+  type ProviderCategory,
+  PROVIDER_MANIFESTS,
+  PROVIDER_CATEGORIES,
+  deriveProviderState,
+} from '../providers/manifests'
 
-type Connector = { id: string; configured: boolean; status: string; message: string }
-const connectors = ref<Connector[]>([])
+type BackendConnector = { id: string; configured: boolean; status: string; message: string }
+interface ProviderEntry { manifest: ProviderManifest; status: ProviderLiveStatus }
+
+const backendConnectors = ref<BackendConnector[]>([])
 const result = ref<string | null>(null)
 const deviceFlow = ref<any | null>(null)
 const loadError = ref('')
 const refreshing = ref(false)
 const showDeviceHelp = ref(false)
 const showRaw = ref(false)
-const tailscaleDetail = ref<any>(null)
+const searchQuery = ref('')
+const filterState = ref('all')
+
+const stateFilterOptions = [
+  { label: 'All', value: 'all' },
+  { label: 'Connected', value: 'connected' },
+  { label: 'Needs setup', value: 'needs_setup' },
+  { label: 'Cloud', value: 'cloud' },
+]
 
 const resultIsText = computed(() => typeof result.value === 'string' && !result.value.startsWith('{'))
 const resultObj = computed(() => {
-  if (!result.value || resultIsText.value) return {}
-  try { return JSON.parse(result.value) } catch { return {} }
+  if (!result.value || resultIsText.value) return {} as Record<string, any>
+  try { return JSON.parse(result.value) } catch { return {} as Record<string, any> }
 })
 
-function badgeColor(item: Connector): string {
-  if (item.configured && (item.status === 'connected' || item.status === 'configured')) return 'positive'
-  if (item.configured) return 'info'
-  return 'warning'
-}
+const allProviders = computed<ProviderEntry[]>(() => {
+  const backendMap = new Map<string, BackendConnector>()
+  for (const c of backendConnectors.value) backendMap.set(c.id, c)
+  return PROVIDER_MANIFESTS.map(manifest => ({
+    manifest,
+    status: deriveProviderState(manifest, backendMap.get(manifest.id)),
+  }))
+})
 
-async function load() {
-  refreshing.value = true
-  loadError.value = ''
-  try {
-    const data = await jsonFetch<{ connectors: Connector[] }>(`${connectorsUrl}/api/connectors`)
-    connectors.value = data.connectors
-  } catch (error) {
-    loadError.value = describeConnectorError(error)
-  } finally {
-    refreshing.value = false
+const filteredProviders = computed<ProviderEntry[]>(() => {
+  let list = allProviders.value
+  if (searchQuery.value) {
+    const q = searchQuery.value.toLowerCase()
+    list = list.filter(p =>
+      p.manifest.name.toLowerCase().includes(q) ||
+      p.manifest.description.toLowerCase().includes(q) ||
+      p.manifest.capabilities.some(c => c.toLowerCase().includes(q))
+    )
   }
-}
+  if (filterState.value === 'connected') {
+    list = list.filter(p => p.status.state === 'connected')
+  } else if (filterState.value === 'needs_setup') {
+    list = list.filter(p => p.status.state !== 'connected' && p.status.state !== 'not_installed')
+  } else if (filterState.value === 'cloud') {
+    list = list.filter(p => p.manifest.category === 'cloud_providers')
+  }
+  return list
+})
+
+const connectedCount = computed(() => allProviders.value.filter(p => p.status.state === 'connected').length)
+const needsConfigCount = computed(() => allProviders.value.filter(p => ['needs_config', 'malformed_config', 'ready_to_authorize'].includes(p.status.state)).length)
+
+const categoryGroups = computed(() => {
+  const filtered = new Set(filteredProviders.value.map(p => p.manifest.id))
+  const result: Record<string, { label: string; icon: string; providers: ProviderEntry[] }> = {}
+  for (const [catKey, catMeta] of Object.entries(PROVIDER_CATEGORIES)) {
+    const providers = allProviders.value.filter(
+      p => p.manifest.category === catKey as ProviderCategory && filtered.has(p.manifest.id)
+    )
+    result[catKey] = { ...catMeta, providers }
+  }
+  return result
+})
 
 function describeConnectorError(error: unknown): string {
   if (!(error instanceof Error)) return String(error)
@@ -200,8 +246,21 @@ function describeConnectorError(error: unknown): string {
       if (detail.required_env) return `${detail.message}\n\nRequired: ${detail.required_env.join(', ')}`
       if (detail.message) return detail.message
     }
-  } catch {}
+  } catch { /* use raw message */ }
   return error.message
+}
+
+async function load() {
+  refreshing.value = true
+  loadError.value = ''
+  try {
+    const data = await jsonFetch<{ connectors: BackendConnector[] }>(`${connectorsUrl}/api/connectors`)
+    backendConnectors.value = data.connectors
+  } catch (error) {
+    loadError.value = describeConnectorError(error)
+  } finally {
+    refreshing.value = false
+  }
 }
 
 async function authorize(provider: string) {
@@ -258,10 +317,15 @@ async function checkTailscale() {
   result.value = null
   try {
     const data = await jsonFetch<any>(`${connectorsUrl}/api/connectors/tailscale/status`)
-    tailscaleDetail.value = data
     result.value = JSON.stringify(data)
   } catch (error) { result.value = describeConnectorError(error) }
 }
 
 onMounted(load)
 </script>
+
+<style scoped>
+.filter-toggle {
+  flex-wrap: wrap;
+}
+</style>

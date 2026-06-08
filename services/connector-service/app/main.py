@@ -142,6 +142,40 @@ async def connector_status() -> dict[str, Any]:
     return {p: provider_status_from_env(env, p).__dict__ for p in ["google", "microsoft", "twilio", "ntfy", "tailscale"]}
 
 
+MARKETPLACE_PROVIDERS: list[dict[str, Any]] = [
+    {"id": "google", "name": "Google", "category": "oauth_identity", "cost_tags": ["external_provider", "free_tier_possible"]},
+    {"id": "microsoft", "name": "Microsoft", "category": "oauth_identity", "cost_tags": ["external_provider", "free_tier_possible"]},
+    {"id": "twilio", "name": "Twilio", "category": "messaging", "cost_tags": ["paid_external", "verify_pricing"]},
+    {"id": "ntfy", "name": "ntfy", "category": "messaging", "cost_tags": ["local", "free_tier_possible"]},
+    {"id": "tailscale", "name": "Tailscale", "category": "infrastructure", "cost_tags": ["private_mesh", "free_tier_possible"]},
+    {"id": "aws", "name": "AWS", "category": "cloud_providers", "cost_tags": ["paid_external", "verify_pricing"], "cloud_safety": True},
+    {"id": "azure", "name": "Azure", "category": "cloud_providers", "cost_tags": ["paid_external", "verify_pricing"], "cloud_safety": True},
+    {"id": "gcp", "name": "Google Cloud", "category": "cloud_providers", "cost_tags": ["paid_external", "verify_pricing"], "cloud_safety": True},
+    {"id": "github", "name": "GitHub", "category": "developer_tools", "cost_tags": ["external_provider", "free_tier_possible"]},
+    {"id": "claude-code", "name": "Claude Code", "category": "ai_models", "cost_tags": ["paid_external", "verify_pricing"]},
+    {"id": "ollama", "name": "Ollama", "category": "ai_models", "cost_tags": ["local"]},
+    {"id": "qdrant", "name": "Qdrant", "category": "infrastructure", "cost_tags": ["local", "free_tier_possible"]},
+    {"id": "searxng", "name": "SearXNG", "category": "infrastructure", "cost_tags": ["local"]},
+    {"id": "n8n", "name": "n8n", "category": "infrastructure", "cost_tags": ["local", "free_tier_possible"]},
+    {"id": "minio", "name": "MinIO", "category": "infrastructure", "cost_tags": ["local"]},
+    {"id": "tileserver", "name": "TileServer GL", "category": "infrastructure", "cost_tags": ["local"]},
+    {"id": "openai", "name": "OpenAI", "category": "ai_models", "cost_tags": ["paid_external", "verify_pricing"]},
+]
+
+
+@app.get("/api/connectors/marketplace")
+async def marketplace() -> dict[str, Any]:
+    env = dict(os.environ)
+    live_statuses = {}
+    for p in ["google", "microsoft", "twilio", "ntfy", "tailscale"]:
+        live_statuses[p] = provider_status_from_env(env, p).__dict__
+    providers = []
+    for mp in MARKETPLACE_PROVIDERS:
+        entry = {**mp, "live_status": live_statuses.get(mp["id"])}
+        providers.append(entry)
+    return {"providers": providers, "categories": ["oauth_identity", "messaging", "infrastructure", "ai_models", "cloud_providers", "developer_tools"]}
+
+
 def missing_oauth_client_detail(provider: str) -> dict[str, Any]:
     provider = provider.lower()
     if provider == "google":
