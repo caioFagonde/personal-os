@@ -1,15 +1,12 @@
 <template>
   <q-page class="column q-gutter-lg">
 
-    <section class="hero-panel">
-      <div class="eyebrow">OAuth · Messaging · Mesh</div>
-      <h1>Connectors</h1>
-      <p>One-click provider onboarding. Google and Microsoft open a consent window; device-code provides a QR/code fallback. Refresh credentials are encrypted server-side.</p>
-      <div class="row q-gutter-sm q-mt-md">
+    <NexusPageHero eyebrow="OAuth · Messaging · Mesh" title="Connectors" subtitle="One-click provider onboarding. Google and Microsoft open a consent window; device-code provides a QR/code fallback. Refresh credentials are encrypted server-side.">
+      <template #actions>
         <q-btn color="primary" icon="mdi-refresh" label="Refresh status" :loading="refreshing" @click="load" />
         <q-btn outline color="primary" icon="mdi-cellphone-key" label="What is device-code?" @click="showDeviceHelp = !showDeviceHelp" />
-      </div>
-    </section>
+      </template>
+    </NexusPageHero>
 
     <q-banner v-if="loadError" class="bg-negative text-white" rounded>
       <template #avatar><q-icon name="mdi-alert-circle-outline" /></template>
@@ -155,6 +152,7 @@ MICROSOFT_REDIRECT_URI=http://localhost:8080/api/proxy/connectors/api/connectors
 
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue'
+import NexusPageHero from '../components/NexusPageHero.vue'
 import { connectorsUrl, jsonFetch } from '../services/api'
 
 type Connector = { id: string; configured: boolean; status: string; message: string }

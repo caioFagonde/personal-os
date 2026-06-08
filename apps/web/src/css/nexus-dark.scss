@@ -1,0 +1,159 @@
+/* Dark-theme overrides for Quasar components not covered by app.scss */
+
+/* Prevent horizontal overflow on all pages */
+.page-shell {
+  overflow-x: hidden;
+}
+
+/* Stepper */
+.q-stepper,
+.q-stepper__tab,
+.q-stepper__step-inner,
+.q-stepper__dot,
+.q-stepper__nav {
+  background: transparent !important;
+  color: var(--nexus-text) !important;
+}
+.q-stepper {
+  border: 1px solid var(--nexus-border) !important;
+  border-radius: 22px !important;
+  box-shadow: none !important;
+}
+.q-stepper__tab--active .q-stepper__dot {
+  background: var(--nexus-accent) !important;
+  color: #05070d !important;
+}
+.q-stepper__tab--done .q-stepper__dot {
+  background: var(--nexus-good) !important;
+  color: #05070d !important;
+}
+.q-stepper__title,
+.q-stepper__caption {
+  color: var(--nexus-text) !important;
+}
+.q-stepper__tab--inactive .q-stepper__title {
+  color: var(--nexus-muted) !important;
+}
+
+/* Tabs */
+.q-tabs--not-scrollable .q-tabs__content,
+.q-tabs__content {
+  background: transparent;
+}
+.q-tab__label {
+  color: var(--nexus-muted);
+}
+.q-tab--active .q-tab__label {
+  color: var(--nexus-accent) !important;
+}
+.q-tab__indicator {
+  background: var(--nexus-accent) !important;
+}
+
+/* Separator */
+.q-separator {
+  background: var(--nexus-border) !important;
+}
+
+/* Chips */
+.q-chip {
+  background: rgba(125, 211, 252, 0.12) !important;
+  color: var(--nexus-text) !important;
+  border-color: var(--nexus-border) !important;
+}
+.q-chip--outline {
+  border: 1px solid var(--nexus-border) !important;
+}
+
+/* Toggle */
+.q-toggle__label {
+  color: var(--nexus-text) !important;
+}
+
+/* Expansion items */
+.q-expansion-item__container {
+  background: transparent !important;
+  color: var(--nexus-text) !important;
+}
+.q-expansion-item .q-item__label {
+  color: var(--nexus-text);
+}
+
+/* List bordered */
+.q-list--bordered {
+  border-color: var(--nexus-border) !important;
+  background: transparent !important;
+}
+.q-list--separator > .q-item-type + .q-item-type {
+  border-top-color: rgba(152, 184, 255, 0.10) !important;
+}
+.q-list .q-item {
+  color: var(--nexus-text);
+}
+
+/* Timeline */
+.q-timeline__title {
+  color: var(--nexus-text) !important;
+}
+.q-timeline__subtitle {
+  color: var(--nexus-muted) !important;
+}
+.q-timeline__content {
+  color: var(--nexus-muted);
+}
+
+/* Slider */
+.q-slider__track-container {
+  color: var(--nexus-border);
+}
+
+/* Banner */
+.q-banner {
+  color: var(--nexus-text);
+}
+
+/* File input */
+.q-file .q-field__native {
+  color: var(--nexus-text) !important;
+}
+
+/* Select dropdown items */
+.q-item {
+  color: var(--nexus-text);
+}
+.q-item__label--caption {
+  color: var(--nexus-muted) !important;
+}
+
+/* Badge text readability */
+.q-badge {
+  font-weight: 700;
+}
+
+/* Inner loading on dark */
+.q-inner-loading {
+  background: rgba(7, 10, 18, 0.6) !important;
+}
+
+/* Dialog cards */
+.q-dialog .q-card {
+  background: linear-gradient(180deg, rgba(21, 31, 55, 0.98), rgba(11, 18, 34, 0.96)) !important;
+  border: 1px solid var(--nexus-border) !important;
+  color: var(--nexus-text) !important;
+}
+
+/* Table overflow on mobile */
+.q-table__container {
+  overflow-x: auto;
+}
+
+/* Ensure primary button visibility */
+.q-btn[class*="bg-primary"] {
+  color: #05070d !important;
+}
+.q-btn--unelevated.bg-primary {
+  box-shadow: 0 0 24px rgba(125, 211, 252, 0.18);
+}
+.q-btn--unelevated.bg-secondary {
+  box-shadow: 0 0 24px rgba(167, 139, 250, 0.18);
+}

@@ -2,20 +2,16 @@
   <q-page class="column q-gutter-lg">
 
     <!-- Hero + quick actions -->
-    <section class="hero-panel">
-      <div class="eyebrow">Nexus Core</div>
-      <h1>Command Center</h1>
-      <p>Sovereign personal operating substrate — capture, study, automate, and ship from one cockpit.</p>
-
-      <div class="quick-actions q-mt-md">
+    <NexusPageHero eyebrow="Nexus Core" title="Command Center" subtitle="Sovereign personal operating substrate — capture, study, automate, and ship from one cockpit.">
+      <template #actions>
         <q-btn unelevated color="primary"    icon="mdi-lightning-bolt-outline"         label="Capture"       to="/capture" />
         <q-btn unelevated color="secondary"  icon="mdi-checkbox-marked-circle-auto-outline" label="New task"  to="/tasks" />
         <q-btn outline                        icon="mdi-graph-outline"                  label="Add Zettel"    to="/zettelkasten" />
         <q-btn outline                        icon="mdi-camera-iris"                   label="Paste text"    to="/study-companion" />
         <q-btn outline                        icon="mdi-connection"                    label="Connectors"    to="/connectors" />
         <q-btn outline                        icon="mdi-code-braces"                   label="Coding job"    to="/coding-agent" />
-      </div>
-    </section>
+      </template>
+    </NexusPageHero>
 
     <!-- Status row -->
     <div class="row q-col-gutter-md">
@@ -196,6 +192,7 @@
 import { computed, onMounted, ref } from 'vue'
 import MetricCard from '../components/MetricCard.vue'
 import ModuleCard from '../components/NexusModuleCard.vue'
+import NexusPageHero from '../components/NexusPageHero.vue'
 import { apiUrl, captureUrl, codingAgentUrl, connectorsUrl, jsonFetch } from '../services/api'
 const modules = ref<any[]>([])
 const apiHealth = ref<any>({ status: 'unknown' })
@@ -264,10 +261,3 @@ async function load() {
 onMounted(load)
 </script>
 
-<style scoped>
-.quick-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-</style>

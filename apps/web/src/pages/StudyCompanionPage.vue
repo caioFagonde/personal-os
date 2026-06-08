@@ -1,11 +1,7 @@
 <template>
   <q-page class="column q-gutter-lg">
 
-    <section class="hero-panel">
-      <div class="eyebrow">Growth</div>
-      <h1>Study Companion</h1>
-      <p>Paste text, upload passages or photos, generate learning atoms, and schedule spaced repetition reviews.</p>
-    </section>
+    <NexusPageHero eyebrow="Growth" title="Study Companion" subtitle="Paste text, upload passages or photos, generate learning atoms, and schedule spaced repetition reviews." />
 
     <q-banner v-if="error" class="bg-negative text-white" rounded>
       <template #avatar><q-icon name="mdi-alert-circle-outline" /></template>
@@ -141,6 +137,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import NexusPageHero from '../components/NexusPageHero.vue'
 import { jsonFetch, studyCompanionUrl, uploadFile } from '../services/api'
 
 const tab = ref('text')
