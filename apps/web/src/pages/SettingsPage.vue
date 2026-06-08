@@ -101,20 +101,20 @@ const requiredRules = [
   (value: unknown) => Boolean(String(value ?? '').trim()) || 'Required'
 ]
 
-const serviceStatus = ref<Record<string, string>>({})
+// const serviceStatus = ref<Record<string, string>>({})
 
 function saveLocalSettingsSnapshot() {
   localStorage.setItem('personal-os.settings.lastValidatedAt', new Date().toISOString())
 }
 
-async function checkServices() {
-  serviceStatus.value = { api: 'checking' }
-  try {
-    const response = await fetch('/health')
-    serviceStatus.value = { api: response.ok ? 'ok' : 'failed' }
-  } catch {
-    serviceStatus.value = { api: 'failed' }
-  }
-}
+// async function checkServices() {
+//   serviceStatus.value = { api: 'checking' }
+//   try {
+//     const response = await fetch('/health')
+//     serviceStatus.value = { api: response.ok ? 'ok' : 'failed' }
+//   } catch {
+//     serviceStatus.value = { api: 'failed' }
+//   }
+// }
 
 </script>
