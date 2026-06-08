@@ -608,7 +608,7 @@ async def proxy_request(base_url: str, path: str, request: Request) -> Response:
             upstream = await client.request(request.method, url, content=body, headers=headers)
     except (httpx.ConnectError, httpx.ConnectTimeout):
         return Response(
-            content=json.dumps({"error": {"code": "service_unavailable", "message": f"Backend service at {base_url} is not reachable", "action": "Run 'make up' to start all services"}}),
+            content=json.dumps({"error": {"code": "optional_service_unavailable", "message": f"Backend service at {base_url} is not reachable", "action": "Run 'make up' to start all services"}}),
             status_code=503,
             headers={"content-type": "application/json"},
         )
