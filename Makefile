@@ -218,3 +218,20 @@ up-coding-agent:
 test-phase14:
 	cd services/coding-agent-service && python -m pytest tests -q
 	python -m pytest tests/test_phase14_scaffold.py -q
+
+.PHONY: update-preflight update-safe rollback-last-update certify-backup certify-update
+
+update-preflight:
+	./scripts/preflight-update.sh
+
+update-safe:
+	./scripts/update.sh
+
+rollback-last-update:
+	./scripts/rollback-last-update.sh
+
+certify-backup:
+	./scripts/certify/backup-smoke.sh
+
+certify-update:
+	./scripts/certify/update-smoke.sh
