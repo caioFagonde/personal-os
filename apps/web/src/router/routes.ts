@@ -43,6 +43,7 @@ export default [
   { path: '/sync', component: SyncPage },
   { path: '/sync-health', component: SyncHealthPage },
   { path: '/connectors', component: ConnectorsPage },
+  { path: '/marketplace', component: ConnectorsPage },
   { path: '/onboarding', component: OnboardingPage },
   { path: '/backup-restore', component: BackupRestorePage },
   { path: '/device-pairing', component: DevicePairingPage },
