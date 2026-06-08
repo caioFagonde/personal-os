@@ -62,6 +62,7 @@ const fields: ConfigField[] = [
 async function save(values: Record<string, string>) {
   failed.value = false
   message.value = ''
+    saveLocalSettingsSnapshot()
   try {
     for (const [key, value] of Object.entries(values)) {
       if (value && value !== '********') {
@@ -95,4 +96,25 @@ async function checkServices() {
     })
   )
 }
+
+const requiredRules = [
+  (value: unknown) => Boolean(String(value ?? '').trim()) || 'Required'
+]
+
+const serviceStatus = ref<Record<string, string>>({})
+
+function saveLocalSettingsSnapshot() {
+  localStorage.setItem('personal-os.settings.lastValidatedAt', new Date().toISOString())
+}
+
+async function checkServices() {
+  serviceStatus.value = { api: 'checking' }
+  try {
+    const response = await fetch('/health')
+    serviceStatus.value = { api: response.ok ? 'ok' : 'failed' }
+  } catch {
+    serviceStatus.value = { api: 'failed' }
+  }
+}
+
 </script>
