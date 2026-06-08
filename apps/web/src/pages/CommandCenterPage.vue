@@ -261,10 +261,3 @@ async function load() {
 onMounted(load)
 </script>
 
-<style scoped>
-.quick-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-</style>
