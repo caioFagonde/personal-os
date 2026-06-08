@@ -1,0 +1,272 @@
+{
+  "version": 1,
+  "project": "personal-os",
+  "created_at": "2026-06-08T12:17:59+00:00",
+  "tasks": [
+    {
+      "id": "nexus-ui-design-system",
+      "title": "Nexus Big Picture design system foundation",
+      "tranche": 4,
+      "priority": "p0",
+      "executor": "claude",
+      "profile": "sonnet-executor",
+      "framework": "vue-quasar",
+      "branch": "agent/nexus-ui-design-system",
+      "allowed_paths": [
+        "apps/web/src/css",
+        "apps/web/src/components",
+        "apps/web/src/layouts",
+        "apps/web/src/router",
+        "apps/web/src/pages",
+        "apps/web/src/services",
+        "tests",
+        "docs",
+        ".agentops/examples"
+      ],
+      "locked_paths": [
+        "apps/web/src/css/app.scss",
+        "apps/web/src/components/nexus",
+        "apps/web/src/layouts/MainLayout.vue"
+      ],
+      "acceptance": [
+        "Global dark/glass theme is legible and consistent",
+        "No white-on-white or pale text on white panels",
+        "Reusable Nexus UI components exist for hero, glass card, carousel, status pill, action tile, empty state, and loading state",
+        "Horizontal overflow is eliminated at desktop and mobile widths",
+        "Existing routes still compile",
+        "pnpm web build passes"
+      ],
+      "checks": [
+        "scripts/agents/run-pytest.sh tests -q",
+        "./scripts/check-secrets.sh",
+        "pnpm --dir apps/web build"
+      ]
+    },
+    {
+      "id": "nexus-big-picture-command-center",
+      "title": "Cinematic Command Center and shell layout refactor",
+      "tranche": 4,
+      "priority": "p0",
+      "executor": "claude",
+      "profile": "sonnet-executor",
+      "framework": "vue-quasar",
+      "branch": "agent/nexus-big-picture-command-center",
+      "allowed_paths": [
+        "apps/web/src/pages",
+        "apps/web/src/components",
+        "apps/web/src/layouts",
+        "apps/web/src/router",
+        "apps/web/src/services",
+        "tests",
+        "docs",
+        ".agentops/examples"
+      ],
+      "locked_paths": [
+        "apps/web/src/pages/CommandCenterPage.vue",
+        "apps/web/src/layouts/MainLayout.vue"
+      ],
+      "acceptance": [
+        "Command Center becomes a Big Picture-style cockpit",
+        "Module launcher carousel exists",
+        "Recent work / daily actions / system status rails exist",
+        "Keyboard-friendly navigation affordances exist",
+        "Mobile layout is card-first and usable",
+        "No route has unreadable text or broken icon text",
+        "pnpm web build passes"
+      ],
+      "checks": [
+        "scripts/agents/run-pytest.sh tests -q",
+        "./scripts/check-secrets.sh",
+        "pnpm --dir apps/web build"
+      ]
+    },
+    {
+      "id": "mobile-offline-sync-continuity",
+      "title": "Mobile offline queue and sync continuity UX",
+      "tranche": 4,
+      "priority": "p0",
+      "executor": "claude",
+      "profile": "sonnet-executor",
+      "framework": "vue-quasar",
+      "branch": "agent/mobile-offline-sync-continuity",
+      "allowed_paths": [
+        "apps/web/src/pages",
+        "apps/web/src/components",
+        "apps/web/src/services",
+        "apps/mobile",
+        "services/sync-engine",
+        "services/api-gateway",
+        "tests",
+        "docs"
+      ],
+      "locked_paths": [
+        "apps/web/src/pages/OfflineQueuePage.vue",
+        "apps/web/src/pages/SyncHealthPage.vue"
+      ],
+      "acceptance": [
+        "Mobile-first offline queue UI exists",
+        "Capture/tasks can queue offline mutations conceptually or through existing service contracts",
+        "Sync state, retry state, conflict state, and pending count are visible",
+        "No failed network call crashes the UI",
+        "Empty states and setup actions exist",
+        "Tests cover offline queue contracts"
+      ],
+      "checks": [
+        "scripts/agents/run-pytest.sh tests -q",
+        "./scripts/check-secrets.sh",
+        "pnpm --dir apps/web build"
+      ]
+    },
+    {
+      "id": "tailscale-ntfy-pairing",
+      "title": "Phone pairing, Tailscale private URL, and ntfy notification setup",
+      "tranche": 4,
+      "priority": "p0",
+      "executor": "claude",
+      "profile": "sonnet-executor",
+      "framework": "fastapi",
+      "branch": "agent/tailscale-ntfy-pairing",
+      "allowed_paths": [
+        "apps/web/src/pages",
+        "apps/web/src/components",
+        "apps/web/src/services",
+        "services/api-gateway",
+        "services/notification-gateway",
+        "services/connector-service",
+        "scripts",
+        "docs",
+        "tests"
+      ],
+      "locked_paths": [
+        "apps/web/src/pages/PairDevicePage.vue",
+        "apps/web/src/pages/ConnectorsPage.vue",
+        "scripts/onboarding"
+      ],
+      "acceptance": [
+        "Pair Device page clearly shows local URL and Tailscale/private URL when detectable",
+        "QR pairing UX is clear and safe",
+        "ntfy setup has subscribe/test/dry-run states",
+        "Missing Tailscale or ntfy config shows setup guidance, not raw error",
+        "No automatic public exposure is introduced",
+        "Tests cover pairing/config contracts"
+      ],
+      "checks": [
+        "scripts/agents/run-pytest.sh tests -q",
+        "./scripts/check-secrets.sh",
+        "docker compose --env-file .env --profile full config >/tmp/personal-os-full.yml"
+      ]
+    },
+    {
+      "id": "portable-capsule-installer",
+      "title": "Portable capsule mode and safe install/update workflow",
+      "tranche": 4,
+      "priority": "p1",
+      "executor": "codex",
+      "profile": "codex-verifier",
+      "framework": "docker-compose",
+      "branch": "agent/portable-capsule-installer",
+      "allowed_paths": [
+        "scripts",
+        "docs",
+        "tests",
+        "docker-compose.yml",
+        ".env.example",
+        "Makefile"
+      ],
+      "locked_paths": [
+        "scripts/bootstrap.sh",
+        "scripts/install-portable.sh",
+        "docs/portable.md"
+      ],
+      "acceptance": [
+        "Portable USB/capsule mode is documented",
+        "Runtime directories are configurable",
+        "No host credentials are persisted by default",
+        "Preflight validates Docker, Tailscale, ADB, pnpm, Python, and disk space",
+        "Update flow creates backup before changing services",
+        "Restore drill command is documented or implemented"
+      ],
+      "checks": [
+        "scripts/agents/run-pytest.sh tests -q",
+        "./scripts/check-secrets.sh",
+        "docker compose --env-file .env --profile full config >/tmp/personal-os-full.yml"
+      ]
+    },
+    {
+      "id": "agentops-console-in-personal-os",
+      "title": "AgentOps control console inside Personal OS",
+      "tranche": 4,
+      "priority": "p1",
+      "executor": "antigravity",
+      "profile": "antigravity-executor",
+      "framework": "vue-quasar",
+      "branch": "agent/agentops-console-in-personal-os",
+      "allowed_paths": [
+        "apps/web/src/pages",
+        "apps/web/src/components",
+        "apps/web/src/services",
+        "services/api-gateway",
+        "services/command-bus",
+        "scripts/agents",
+        "docs",
+        "tests",
+        ".agentops"
+      ],
+      "locked_paths": [
+        "apps/web/src/pages/AgentOpsPage.vue",
+        "apps/web/src/pages/CodingAgentPage.vue"
+      ],
+      "acceptance": [
+        "Personal OS has a page to inspect AgentOps tasks, worktrees, reports, and event logs",
+        "No worker can be launched without clear scope display",
+        "No merge/push is done automatically from UI",
+        "Reports are readable and linked to task status",
+        "Claude/Codex/Antigravity availability is visible",
+        "Tests cover route/page existence"
+      ],
+      "checks": [
+        "scripts/agents/run-pytest.sh tests -q",
+        "./scripts/check-secrets.sh",
+        "pnpm --dir apps/web build"
+      ]
+    },
+    {
+      "id": "qa-tranche4-route-endpoint-repair",
+      "title": "QA, route/endpoint repair, and release-readiness for Tranche 04",
+      "tranche": 44,
+      "priority": "p0",
+      "executor": "codex",
+      "profile": "codex-verifier",
+      "framework": "qa",
+      "branch": "agent/qa-tranche4-route-endpoint-repair",
+      "allowed_paths": [
+        "apps/web/src/router",
+        "apps/web/src/pages",
+        "apps/web/src/components",
+        "services",
+        "scripts/certify",
+        "tests",
+        "docs"
+      ],
+      "locked_paths": [
+        "scripts/certify",
+        "tests"
+      ],
+      "acceptance": [
+        "Every nav item routes to a page",
+        "Every Tranche 04 page has loading, empty, error, and success states where relevant",
+        "Every UI-used endpoint is present or gracefully marked as unavailable",
+        "Expected missing config is never a raw 500",
+        "Core test suite passes",
+        "Web build passes",
+        "QA report is generated"
+      ],
+      "checks": [
+        "scripts/agents/run-pytest.sh tests -q",
+        "./scripts/check-secrets.sh",
+        "pnpm --dir apps/web build",
+        "docker compose --env-file .env --profile full config >/tmp/personal-os-full.yml"
+      ]
+    }
+  ]
+}
