@@ -10,7 +10,8 @@
 
     <q-banner v-if="error" class="bg-negative text-white" rounded>
       <template #avatar><q-icon name="mdi-alert-circle-outline" /></template>
-      {{ error }}
+      <div>{{ parseErrorMessage(error) }}</div>
+      <div v-if="parseErrorAction(error)" class="text-caption q-mt-xs" style="opacity:.85">{{ parseErrorAction(error) }}</div>
       <template #action><q-btn flat color="white" label="Dismiss" @click="error = ''" /></template>
     </q-banner>
 
@@ -90,9 +91,32 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
-import NexusPageHero from '../components/NexusPageHero.vue'
+import { onMounted, computed, reactive, ref, watch } from 'vue'
 import { captureUrl, jsonFetch } from '../services/api'
+
+function parseErrorMessage(raw: string): string {
+  try {
+    const idx = raw.indexOf('{')
+    if (idx >= 0) {
+      const parsed = JSON.parse(raw.slice(idx))
+      const detail = parsed.detail || parsed.error
+      if (detail && typeof detail === 'object') return detail.message || raw
+    }
+  } catch { /* not JSON */ }
+  return raw
+}
+
+function parseErrorAction(raw: string): string {
+  try {
+    const idx = raw.indexOf('{')
+    if (idx >= 0) {
+      const parsed = JSON.parse(raw.slice(idx))
+      const detail = parsed.detail || parsed.error
+      if (detail && typeof detail === 'object') return detail.action || ''
+    }
+  } catch { /* not JSON */ }
+  return ''
+}
 
 const tasks = ref<any[]>([])
 const loading = ref(false)

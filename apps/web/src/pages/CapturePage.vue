@@ -5,7 +5,8 @@
 
     <q-banner v-if="error" class="bg-negative text-white" rounded>
       <template #avatar><q-icon name="mdi-alert-circle-outline" /></template>
-      {{ error }}
+      <div>{{ errorMessage }}</div>
+      <div v-if="errorAction" class="text-caption q-mt-xs" style="opacity:.85">{{ errorAction }}</div>
       <template #action><q-btn flat color="white" label="Dismiss" @click="error = ''" /></template>
     </q-banner>
 
@@ -80,8 +81,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import NexusPageHero from '../components/NexusPageHero.vue'
+import { computed, ref } from 'vue'
 import { captureUrl, jsonFetch } from '../services/api'
 
 const placeholder = '/secretary whatsapp email due today 17h Ask João for the signed contract\n/task Finish report by Friday\n/note Idea: use a CRDT for notes'
@@ -89,6 +89,32 @@ const text = ref('')
 const result = ref<any>(null)
 const error = ref('')
 const loading = ref(false)
+
+const errorMessage = computed(() => {
+  if (!error.value) return ''
+  try {
+    const idx = error.value.indexOf('{')
+    if (idx >= 0) {
+      const parsed = JSON.parse(error.value.slice(idx))
+      const detail = parsed.detail || parsed.error
+      if (detail && typeof detail === 'object') return detail.message || error.value
+    }
+  } catch { /* not JSON */ }
+  return error.value
+})
+
+const errorAction = computed(() => {
+  if (!error.value) return ''
+  try {
+    const idx = error.value.indexOf('{')
+    if (idx >= 0) {
+      const parsed = JSON.parse(error.value.slice(idx))
+      const detail = parsed.detail || parsed.error
+      if (detail && typeof detail === 'object') return detail.action || ''
+    }
+  } catch { /* not JSON */ }
+  return ''
+})
 
 async function capture() {
   if (!text.value.trim()) return
