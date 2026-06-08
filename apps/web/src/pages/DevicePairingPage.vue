@@ -1,10 +1,6 @@
 <template>
-  <q-page class="q-pa-md column q-gutter-md">
-    <section class="hero-panel">
-      <div class="eyebrow">Clone-and-continue</div>
-      <h1>Device Pairing</h1>
-      <p>Create a short-lived pairing URL and QR code for phones, tablets, or a second PC.</p>
-    </section>
+  <q-page class="column q-gutter-lg">
+    <NexusPageHero eyebrow="Clone-and-continue" title="Device Pairing" subtitle="Create a short-lived pairing URL and QR code for phones, tablets, or a second PC." />
 
     <q-banner v-if="error" class="bg-negative text-white" rounded>
       <template #avatar><q-icon name="mdi-alert-circle-outline" /></template>
@@ -37,6 +33,7 @@
 </template>
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import NexusPageHero from '../components/NexusPageHero.vue'
 import { connectorsUrl, jsonFetch } from '../services/api'
 
 const pairing = ref<any | null>(null)

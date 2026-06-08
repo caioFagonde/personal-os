@@ -1,10 +1,6 @@
 <template>
   <q-page class="column q-gutter-lg">
-    <section class="hero-panel">
-      <div class="eyebrow">Sync Safety</div>
-      <h1>Conflict Resolution</h1>
-      <p>Inspect divergent entity versions and commit an explicit resolution.</p>
-    </section>
+    <NexusPageHero eyebrow="Sync Safety" title="Conflict Resolution" subtitle="Inspect divergent entity versions and commit an explicit resolution." />
 
     <q-banner v-if="error" class="bg-negative text-white" rounded>
       <template #avatar><q-icon name="mdi-alert-circle-outline" /></template>
@@ -50,6 +46,7 @@
 </template>
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
+import NexusPageHero from '../components/NexusPageHero.vue'
 import { jsonFetch, syncUrl, deviceKey } from '../services/api'
 
 const conflicts = ref<any[]>([])

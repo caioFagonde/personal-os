@@ -1,14 +1,11 @@
 <template>
   <q-page class="column q-gutter-lg">
-    <section class="hero-panel">
-      <div class="eyebrow">Phase 12 Certification</div>
-      <h1>Device & Release Certification</h1>
-      <p>Run browser, Android, connector, restore, and release checks before trusting a build for daily operation.</p>
-      <div class="row q-gutter-sm">
+    <NexusPageHero eyebrow="Certification" title="Device & Release Certification" subtitle="Run browser, Android, connector, restore, and release checks before trusting a build for daily operation.">
+      <template #actions>
         <q-btn color="primary" icon="mdi-refresh" label="Refresh status" @click="load" />
         <q-btn color="secondary" icon="mdi-clipboard-check-outline" label="Copy local test commands" @click="copyCommands" />
-      </div>
-    </section>
+      </template>
+    </NexusPageHero>
 
     <div class="row q-col-gutter-md">
       <div v-for="item in matrix" :key="item.id" class="col-12 col-md-6 col-lg-4">
@@ -40,6 +37,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { copyToClipboard, Notify } from 'quasar'
+import NexusPageHero from '../components/NexusPageHero.vue'
 import { connectorsUrl, jsonFetch } from '../services/api'
 
 const status = ref<any>({})

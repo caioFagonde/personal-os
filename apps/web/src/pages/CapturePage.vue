@@ -1,11 +1,7 @@
 <template>
   <q-page class="column q-gutter-lg">
 
-    <section class="hero-panel">
-      <div class="eyebrow">Core Daily</div>
-      <h1>Fast Capture</h1>
-      <p>Write once. The system creates a task, stores the note trail, and delegates when rules match.</p>
-    </section>
+    <NexusPageHero eyebrow="Core Daily" title="Fast Capture" subtitle="Write once. The system creates a task, stores the note trail, and delegates when rules match." />
 
     <q-banner v-if="error" class="bg-negative text-white" rounded>
       <template #avatar><q-icon name="mdi-alert-circle-outline" /></template>
@@ -85,6 +81,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import NexusPageHero from '../components/NexusPageHero.vue'
 import { captureUrl, jsonFetch } from '../services/api'
 
 const placeholder = '/secretary whatsapp email due today 17h Ask João for the signed contract\n/task Finish report by Friday\n/note Idea: use a CRDT for notes'

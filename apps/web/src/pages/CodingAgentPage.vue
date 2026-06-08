@@ -1,14 +1,11 @@
 <template>
   <q-page class="column q-gutter-lg">
-    <section class="hero-panel">
-      <div class="eyebrow">Phase 14 · Claude Code</div>
-      <h1>Coding Agent</h1>
-      <p>Queue approval-gated coding work on your home PC. Jobs run in isolated git worktrees, scrub secrets from the environment, capture logs and artifacts, and require approval before execution.</p>
-      <div class="row q-gutter-sm q-mt-md">
+    <NexusPageHero eyebrow="Claude Code" title="Coding Agent" subtitle="Queue approval-gated coding work on your home PC. Jobs run in isolated git worktrees, scrub secrets from the environment, and require approval before execution.">
+      <template #actions>
         <q-btn color="primary" icon="mdi-refresh" label="Refresh" :loading="loading" @click="load" />
         <q-btn outline :icon="status.execute_enabled ? 'mdi-play-circle-outline' : 'mdi-shield-check-outline'" :label="status.execute_enabled ? 'Execution enabled' : 'Dry-run mode'" :color="status.execute_enabled ? 'warning' : 'primary'" />
-      </div>
-    </section>
+      </template>
+    </NexusPageHero>
 
     <q-banner v-if="loadError" class="bg-negative text-white" rounded>
       <template #avatar><q-icon name="mdi-alert-circle-outline" /></template>
@@ -194,6 +191,7 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
+import NexusPageHero from '../components/NexusPageHero.vue'
 import { codingAgentUrl, jsonFetch } from '../services/api'
 
 const modes = ['analyze', 'fix', 'feature', 'tests', 'docs', 'refactor']

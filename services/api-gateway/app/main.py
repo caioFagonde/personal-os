@@ -87,6 +87,20 @@ app.add_middleware(
 _pool: asyncpg.Pool | None = None
 
 
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception) -> Response:
+    from fastapi.responses import JSONResponse
+    if isinstance(exc, HTTPException):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"error": {"code": "http_error", "message": exc.detail}},
+        )
+    return JSONResponse(
+        status_code=500,
+        content={"error": {"code": "internal_error", "message": "An unexpected error occurred"}},
+    )
+
+
 class ModuleHealth(BaseModel):
     id: str
     name: str
@@ -587,8 +601,21 @@ async def proxy_request(base_url: str, path: str, request: Request) -> Response:
     url = f"{base_url.rstrip('/')}/{path}"
     if request.url.query:
         url = f"{url}?{request.url.query}"
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        upstream = await client.request(request.method, url, content=body, headers=headers)
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            upstream = await client.request(request.method, url, content=body, headers=headers)
+    except (httpx.ConnectError, httpx.ConnectTimeout):
+        return Response(
+            content=json.dumps({"error": {"code": "service_unavailable", "message": f"Backend service at {base_url} is not reachable", "action": "Run 'make up' to start all services"}}),
+            status_code=503,
+            headers={"content-type": "application/json"},
+        )
+    except httpx.ReadTimeout:
+        return Response(
+            content=json.dumps({"error": {"code": "gateway_timeout", "message": "Backend service did not respond in time"}}),
+            status_code=504,
+            headers={"content-type": "application/json"},
+        )
     response_headers = {}
     if upstream.headers.get("content-type"):
         response_headers["content-type"] = upstream.headers["content-type"]

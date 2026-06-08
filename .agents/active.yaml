@@ -1,0 +1,56 @@
+# Human-readable twin of .agents/active.json. agentctl reads active.json by default.
+version: 1
+objective: Personal OS v1 productization through bounded multi-agent worktrees
+budget:
+  max_parallel_workers: 4
+  tranche_minutes: 45
+  review_minutes: 15
+tasks:
+  - id: ui-foundation
+    priority: p0
+    executor: ui_executor
+    title: Fix global Nexus UI foundation: dark theme, icons, overflow, shared components
+    depends_on: []
+    prompt_file: .agents/tasks/ui-foundation.md
+  - id: capture-e2e
+    priority: p0
+    executor: backend_executor
+    title: Fix capture, task creation, and secretary delegation end-to-end
+    depends_on: []
+    prompt_file: .agents/tasks/capture-e2e.md
+  - id: config-validation
+    priority: p0
+    executor: devops_executor
+    title: Add safe env/runtime config validation and settings setup UX contracts
+    depends_on: []
+    prompt_file: .agents/tasks/config-validation.md
+  - id: maps-geolocation
+    priority: p1
+    executor: ui_executor
+    title: Implement automatic coordinates and honest maps/AR setup flow
+    depends_on: ['ui-foundation']
+    prompt_file: .agents/tasks/maps-geolocation.md
+  - id: model-runtime-realism
+    priority: p1
+    executor: backend_executor
+    title: Separate demo heuristics from real model providers and add setup/certification
+    depends_on: ['ui-foundation']
+    prompt_file: .agents/tasks/model-runtime-realism.md
+  - id: intelligence-layer
+    priority: p2
+    executor: backend_executor
+    title: Add ethical intelligence center for public/user-authorized sources
+    depends_on: ['ui-foundation', 'config-validation']
+    prompt_file: .agents/tasks/intelligence-layer.md
+  - id: backup-update-pipeline
+    priority: p1
+    executor: devops_executor
+    title: Azure/AWS backup provider setup and safe update pipeline with ntfy progress
+    depends_on: ['config-validation']
+    prompt_file: .agents/tasks/backup-update-pipeline.md
+  - id: verify-integrate-tranche-1
+    priority: p0
+    executor: verifier
+    title: Verify and integrate first tranche: UI foundation, capture, config validation
+    depends_on: ['ui-foundation', 'capture-e2e', 'config-validation']
+    prompt_file: .agents/tasks/verify-integrate-tranche-1.md

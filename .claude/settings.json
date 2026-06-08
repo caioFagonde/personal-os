@@ -4,6 +4,7 @@
       "Read(./.env)",
       "Read(./.env.*)",
       "Read(./secrets/**)",
+      "Read(./.private/**)",
       "Read(./data/**)",
       "Read(./backups/**)",
       "Read(./logs/**)",
@@ -12,22 +13,20 @@
       "Read(./**/*token*)",
       "Read(./**/*credentials*)",
       "Read(./**/client_secret*.json)",
+      "Bash(sudo *)",
       "Bash(rm -rf /*)",
       "Bash(rm -rf ~*)",
-      "Bash(sudo *)",
-      "Bash(curl *|*bash*)",
-      "Bash(wget *|*bash*)",
       "Bash(docker volume rm *)",
-      "Bash(docker system prune *)"
+      "Bash(docker system prune *)",
+      "Bash(git push *)"
     ],
     "ask": [
       "Bash(docker compose *)",
-      "Bash(git push *)",
-      "Bash(git reset *)",
-      "Bash(git clean *)",
       "Bash(pnpm install *)",
       "Bash(npm install *)",
-      "Bash(pip install *)"
+      "Bash(pip install *)",
+      "Bash(git reset *)",
+      "Bash(git clean *)"
     ],
     "allow": [
       "Read",
@@ -41,7 +40,7 @@
       "Bash(python3 -m pytest tests -q*)",
       "Bash(./scripts/check-secrets.sh*)",
       "Bash(bash -n scripts/*.sh*)",
-      "Bash(docker compose --env-file .env config*)"
+      "Bash(docker compose --env-file .env --profile full config*)"
     ]
   }
 }

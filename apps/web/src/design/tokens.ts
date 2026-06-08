@@ -28,6 +28,7 @@ export const secondaryModules = [
   { id: 'release-center', label: 'Release', path: '/release-center', icon: 'mdi-package-variant-closed-check', group: 'Ops' },
   { id: 'live-stack', label: 'Live Stack', path: '/live-stack', icon: 'mdi-server-network', group: 'Ops' },
   { id: 'initial-readiness', label: 'Readiness', path: '/initial-readiness', icon: 'mdi-flag-checkered', group: 'Ops' },
+  { id: 'settings', label: 'Settings', path: '/settings', icon: 'mdi-cog-outline', group: 'System' },
 ] as const
 
 export const allModules = [...navigationModules, ...secondaryModules] as const

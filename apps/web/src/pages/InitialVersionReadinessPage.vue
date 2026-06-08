@@ -1,19 +1,22 @@
 <template>
-  <q-page class="q-pa-md q-gutter-md">
-    <section class="hero-card glass-panel">
-      <div class="text-overline">Initial Version</div>
-      <h1>Release Readiness Gate</h1>
-      <p>The initial version is complete when every gate below passes on the real stack, real phone, and configured connector sandbox.</p>
-    </section>
-    <q-list bordered class="glass-panel rounded-borders">
-      <q-item v-for="gate in gates" :key="gate">
-        <q-item-section avatar><q-icon name="mdi-checkbox-marked-circle-outline" color="positive" /></q-item-section>
-        <q-item-section>{{ gate }}</q-item-section>
-      </q-item>
-    </q-list>
+  <q-page class="column q-gutter-lg">
+    <NexusPageHero eyebrow="Initial Version" title="Release Readiness Gate" subtitle="The initial version is complete when every gate below passes on the real stack, real phone, and configured connector sandbox." />
+
+    <q-card class="glass-card">
+      <q-card-section>
+        <q-list separator>
+          <q-item v-for="gate in gates" :key="gate">
+            <q-item-section avatar><q-icon name="mdi-checkbox-marked-circle-outline" color="positive" /></q-item-section>
+            <q-item-section>{{ gate }}</q-item-section>
+          </q-item>
+        </q-list>
+      </q-card-section>
+    </q-card>
   </q-page>
 </template>
 <script setup lang="ts">
+import NexusPageHero from '../components/NexusPageHero.vue'
+
 const gates = [
   'Fresh clone installs with ./scripts/bootstrap.sh --full --open --certify',
   'Full Docker stack passes health checks',

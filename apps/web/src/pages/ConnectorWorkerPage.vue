@@ -1,10 +1,6 @@
 <template>
   <q-page class="column q-gutter-lg">
-    <section class="hero-panel">
-      <div class="eyebrow">Operations</div>
-      <h1>Connector Worker</h1>
-      <p>Drain WhatsApp, email, ntfy, automation, and backup delivery queues with auditable status.</p>
-    </section>
+    <NexusPageHero eyebrow="Operations" title="Connector Worker" subtitle="Drain WhatsApp, email, ntfy, automation, and backup delivery queues with auditable status." />
 
     <q-banner v-if="error" class="bg-negative text-white" rounded>
       <template #avatar><q-icon name="mdi-alert-circle-outline" /></template>
@@ -41,6 +37,7 @@
 </template>
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import NexusPageHero from '../components/NexusPageHero.vue'
 import { connectorsUrl, jsonFetch } from '../services/api'
 
 const status = ref<any>({})

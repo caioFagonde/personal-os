@@ -11,6 +11,7 @@
           </div>
         </q-toolbar-title>
         <q-btn flat no-caps icon="mdi-magnify" :label="layout.commandPaletteShortcut" @click="openPalette" />
+        <q-btn flat round icon="mdi-cog-outline" to="/settings" />
         <q-btn flat round icon="mdi-theme-light-dark" @click="toggleDark" />
       </q-toolbar>
     </q-header>

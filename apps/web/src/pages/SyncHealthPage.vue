@@ -1,20 +1,16 @@
 <template>
   <q-page class="column q-gutter-lg">
-    <section class="hero-panel">
-      <div class="eyebrow">Operations</div>
-      <h1>Sync Health</h1>
-      <p>Control-plane health, connector readiness, sync conflicts, and continuity status.</p>
-    </section>
+    <NexusPageHero eyebrow="Operations" title="Sync Health" subtitle="Control-plane health, connector readiness, sync conflicts, and continuity status.">
+      <template #actions>
+        <q-btn color="primary" icon="mdi-heart-pulse" label="Run health check" :loading="loading" @click="load" />
+      </template>
+    </NexusPageHero>
 
     <q-banner v-if="error" class="bg-negative text-white" rounded>
       <template #avatar><q-icon name="mdi-alert-circle-outline" /></template>
       {{ error }}
       <template #action><q-btn flat color="white" label="Dismiss" @click="error = ''" /></template>
     </q-banner>
-
-    <div class="row q-gutter-sm">
-      <q-btn color="primary" icon="mdi-heart-pulse" label="Run health check" :loading="loading" @click="load" />
-    </div>
 
     <q-card v-if="health" class="glass-card">
       <q-card-section>
@@ -47,6 +43,7 @@
 </template>
 <script setup lang="ts">
 import { ref } from 'vue'
+import NexusPageHero from '../components/NexusPageHero.vue'
 import { apiUrl, connectorsUrl, jsonFetch } from '../services/api'
 
 const health = ref<any>(null)

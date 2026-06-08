@@ -67,6 +67,20 @@ class DeviceFlowPollRequest(BaseModel):
 
 
 
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    import json
+    from fastapi.responses import JSONResponse
+    if isinstance(exc, HTTPException):
+        detail = exc.detail
+        if isinstance(detail, dict):
+            return JSONResponse(status_code=exc.status_code, content={"error": detail})
+        return JSONResponse(status_code=exc.status_code, content={"error": {"code": "http_error", "message": str(detail)}})
+    if isinstance(exc, asyncpg.exceptions.PostgresError):
+        return JSONResponse(status_code=500, content={"error": {"code": "database_error", "message": "A database error occurred"}})
+    return JSONResponse(status_code=500, content={"error": {"code": "internal_error", "message": "An unexpected error occurred"}})
+
+
 async def pool() -> asyncpg.Pool:
     if _pool is None:
         raise RuntimeError("database pool not initialized")

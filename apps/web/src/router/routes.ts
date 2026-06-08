@@ -25,6 +25,7 @@ import ModelRuntimePage from '../pages/ModelRuntimePage.vue'
 import LiveStackPage from '../pages/LiveStackPage.vue'
 import InitialVersionReadinessPage from '../pages/InitialVersionReadinessPage.vue'
 import CodingAgentPage from '../pages/CodingAgentPage.vue'
+import SettingsPage from '../pages/SettingsPage.vue'
 
 export default [
   { path: '/', component: CommandCenterPage },
@@ -53,5 +54,6 @@ export default [
   { path: '/model-runtime', component: ModelRuntimePage },
   { path: '/live-stack', component: LiveStackPage },
   { path: '/initial-readiness', component: InitialVersionReadinessPage },
+  { path: '/settings', component: SettingsPage },
   { path: '/modules/:id', component: ModulePage, props: true }
 ]

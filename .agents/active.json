@@ -1,0 +1,361 @@
+{
+  "version": 1,
+  "objective": "Personal OS v1 productization through bounded multi-agent worktrees",
+  "budget": {
+    "max_parallel_workers": 4,
+    "tranche_minutes": 45,
+    "review_minutes": 15
+  },
+  "worktree_root": ".agent-worktrees",
+  "run_root": ".agents/runs",
+  "report_root": ".agents/reports",
+  "global_constraints": {
+    "no_secret_paths": [
+      ".env",
+      ".env.*",
+      "secrets/**",
+      ".private/**",
+      "data/**",
+      "backups/**",
+      "logs/**",
+      "node_modules/**",
+      ".git/**",
+      "**/*token*",
+      "**/*credentials*",
+      "**/client_secret*.json",
+      "**/*.pem",
+      "**/*.key",
+      "**/*.p12",
+      "**/*.pfx"
+    ],
+    "no_destructive_commands": true,
+    "require_tests": true,
+    "no_auto_commit": true,
+    "no_auto_push": true
+  },
+  "global_acceptance": [
+    "python3 -m pytest tests -q passes",
+    "./scripts/check-secrets.sh passes",
+    "bash -n scripts/*.sh passes",
+    "docker compose --env-file .env --profile full config passes when Docker is available",
+    "pnpm --dir apps/web build passes when Node deps are available",
+    "bootstrap completes or produces actionable diagnostics",
+    "core UI routes render without obvious visual corruption"
+  ],
+  "workers": {
+    "planner": {
+      "model": "opus",
+      "mode": "read_only",
+      "role_file": ".agents/roles/planner.md"
+    },
+    "scout": {
+      "model": "haiku",
+      "mode": "read_only",
+      "role_file": ".agents/roles/scout.md"
+    },
+    "ui_executor": {
+      "model": "sonnet",
+      "mode": "edit",
+      "role_file": ".agents/roles/ui-executor.md"
+    },
+    "backend_executor": {
+      "model": "sonnet",
+      "mode": "edit",
+      "role_file": ".agents/roles/backend-executor.md"
+    },
+    "devops_executor": {
+      "model": "codex",
+      "mode": "edit",
+      "role_file": ".agents/roles/devops-executor.md"
+    },
+    "verifier": {
+      "model": "codex",
+      "mode": "test_only",
+      "role_file": ".agents/roles/verifier.md"
+    },
+    "integrator": {
+      "model": "opus_or_gpt",
+      "mode": "review_only",
+      "role_file": ".agents/roles/integrator.md"
+    }
+  },
+  "tasks": [
+    {
+      "id": "ui-foundation",
+      "priority": "p0",
+      "executor": "ui_executor",
+      "title": "Fix global Nexus UI foundation: dark theme, icons, overflow, shared components",
+      "allowed_paths": [
+        "apps/web/src/css/**",
+        "apps/web/src/design/**",
+        "apps/web/src/components/**",
+        "apps/web/src/pages/**",
+        "apps/web/src/router/**",
+        "apps/web/quasar.config.ts",
+        "apps/web/index.html",
+        "tests/**",
+        "docs/ux-command-center.md"
+      ],
+      "locked_paths": [
+        "apps/web/src/css/app.scss",
+        "apps/web/src/design/tokens.ts",
+        "apps/web/src/App.vue"
+      ],
+      "depends_on": [],
+      "prompt_file": ".agents/tasks/ui-foundation.md",
+      "acceptance": [
+        "No unreadable white cards/forms in dark theme",
+        "No broken icon text artifacts such as arrow_drop_down",
+        "No global horizontal overflow on core pages",
+        "Primary buttons are visible and aligned",
+        "Core pages use consistent Nexus components"
+      ],
+      "tests": [
+        "python3 -m pytest tests -q",
+        "./scripts/check-secrets.sh",
+        "pnpm --dir apps/web build"
+      ]
+    },
+    {
+      "id": "capture-e2e",
+      "priority": "p0",
+      "executor": "backend_executor",
+      "title": "Fix capture, task creation, and secretary delegation end-to-end",
+      "allowed_paths": [
+        "services/capture-service/**",
+        "services/api-gateway/**",
+        "apps/web/src/pages/CapturePage.vue",
+        "apps/web/src/pages/TasksPage.vue",
+        "apps/web/src/services/api.ts",
+        "infra/postgres/migrations/**",
+        "tests/**",
+        "scripts/certify/**",
+        "docs/v1-feature-matrix.md"
+      ],
+      "locked_paths": [
+        "services/capture-service/app/main.py",
+        "apps/web/src/pages/CapturePage.vue"
+      ],
+      "depends_on": [],
+      "prompt_file": ".agents/tasks/capture-e2e.md",
+      "acceptance": [
+        "Capture creates notes/tasks through gateway proxy",
+        "Secretary missing channels returns structured 409 with setup action",
+        "UI catches and renders API errors",
+        "Non-destructive capture smoke script exists"
+      ],
+      "tests": [
+        "python3 -m pytest tests -q",
+        "./scripts/check-secrets.sh",
+        "./scripts/certify/v1-local-smoke.sh"
+      ]
+    },
+    {
+      "id": "config-validation",
+      "priority": "p0",
+      "executor": "devops_executor",
+      "title": "Add safe env/runtime config validation and settings setup UX contracts",
+      "allowed_paths": [
+        "scripts/validate-env.py",
+        "scripts/bootstrap.sh",
+        "scripts/doctor-full.sh",
+        "apps/web/src/pages/SettingsPage.vue",
+        "apps/web/src/components/NexusConfigForm.vue",
+        "services/api-gateway/**",
+        ".env.example",
+        "tests/**",
+        "docs/install.md",
+        "docs/troubleshooting.md"
+      ],
+      "locked_paths": [
+        "scripts/bootstrap.sh",
+        ".env.example"
+      ],
+      "depends_on": [],
+      "prompt_file": ".agents/tasks/config-validation.md",
+      "acceptance": [
+        "Malformed config is caught without printing secret values",
+        "Settings page validates masked fields",
+        "Missing optional config routes to setup UI not raw 500",
+        "Bootstrap prints actionable config diagnostics"
+      ],
+      "tests": [
+        "python3 -m pytest tests -q",
+        "./scripts/check-secrets.sh",
+        "python3 scripts/validate-env.py --example .env.example"
+      ]
+    },
+    {
+      "id": "maps-geolocation",
+      "priority": "p1",
+      "executor": "ui_executor",
+      "title": "Implement automatic coordinates and honest maps/AR setup flow",
+      "allowed_paths": [
+        "apps/web/src/pages/GeospatialPage.vue",
+        "apps/web/src/pages/ARMemoryPage.vue",
+        "apps/web/src/components/**",
+        "services/module-service/**",
+        "scripts/maps/**",
+        "scripts/certify/maps-smoke.sh",
+        "tests/**",
+        "docs/maps.md"
+      ],
+      "locked_paths": [
+        "apps/web/src/pages/GeospatialPage.vue",
+        "apps/web/src/pages/ARMemoryPage.vue"
+      ],
+      "depends_on": [
+        "ui-foundation"
+      ],
+      "prompt_file": ".agents/tasks/maps-geolocation.md",
+      "acceptance": [
+        "Use current location button via browser Geolocation",
+        "Permission denied shows manual fallback",
+        "Map data missing has setup state",
+        "Coordinate validation exists"
+      ],
+      "tests": [
+        "python3 -m pytest tests -q",
+        "./scripts/certify/maps-smoke.sh"
+      ]
+    },
+    {
+      "id": "model-runtime-realism",
+      "priority": "p1",
+      "executor": "backend_executor",
+      "title": "Separate demo heuristics from real model providers and add setup/certification",
+      "allowed_paths": [
+        "services/model-runtime/**",
+        "apps/web/src/pages/ModelRuntimePage.vue",
+        "scripts/setup-models.sh",
+        "scripts/certify/model-runtime-smoke.sh",
+        "Makefile",
+        "tests/**",
+        "docs/model-runtime.md"
+      ],
+      "locked_paths": [
+        "services/model-runtime/app/main.py",
+        "apps/web/src/pages/ModelRuntimePage.vue"
+      ],
+      "depends_on": [
+        "ui-foundation"
+      ],
+      "prompt_file": ".agents/tasks/model-runtime-realism.md",
+      "acceptance": [
+        "Heuristic mode clearly labeled demo-only",
+        "Provider status endpoint reports installed/configured/tested",
+        "Model setup docs/scripts exist",
+        "No UI claims production model readiness without provider test"
+      ],
+      "tests": [
+        "python3 -m pytest tests -q",
+        "./scripts/certify/model-runtime-smoke.sh"
+      ]
+    },
+    {
+      "id": "intelligence-layer",
+      "priority": "p2",
+      "executor": "backend_executor",
+      "title": "Add ethical intelligence center for public/user-authorized sources",
+      "allowed_paths": [
+        "modules/intelligence/**",
+        "services/intelligence-service/**",
+        "apps/web/src/pages/IntelligencePage.vue",
+        "apps/web/src/router/routes.ts",
+        "infra/postgres/migrations/**",
+        "docker-compose.yml",
+        "tests/**",
+        "docs/intelligence.md"
+      ],
+      "locked_paths": [
+        "apps/web/src/router/routes.ts",
+        "docker-compose.yml"
+      ],
+      "depends_on": [
+        "ui-foundation",
+        "config-validation"
+      ],
+      "prompt_file": ".agents/tasks/intelligence-layer.md",
+      "acceptance": [
+        "Public/user-authorized source policy is explicit",
+        "Keyword monitor scaffold works",
+        "Findings can be saved to Zettelkasten/task if endpoints exist",
+        "No unauthorized surveillance or paywall bypass"
+      ],
+      "tests": [
+        "python3 -m pytest tests -q",
+        "./scripts/certify/intelligence-smoke.sh"
+      ]
+    },
+    {
+      "id": "backup-update-pipeline",
+      "priority": "p1",
+      "executor": "devops_executor",
+      "title": "Azure/AWS backup provider setup and safe update pipeline with ntfy progress",
+      "allowed_paths": [
+        "scripts/update.sh",
+        "scripts/preflight-update.sh",
+        "scripts/rollback-last-update.sh",
+        "scripts/certify/backup-smoke.sh",
+        "scripts/certify/update-smoke.sh",
+        "services/connector-service/**",
+        "apps/web/src/pages/BackupRestorePage.vue",
+        "apps/web/src/pages/ReleaseCenterPage.vue",
+        "Makefile",
+        "tests/**",
+        "docs/backup.md",
+        "docs/update-pipeline.md",
+        "docs/cloud-provider-strategy.md"
+      ],
+      "locked_paths": [
+        "Makefile",
+        "scripts/update.sh"
+      ],
+      "depends_on": [
+        "config-validation"
+      ],
+      "prompt_file": ".agents/tasks/backup-update-pipeline.md",
+      "acceptance": [
+        "Azure Blob backup setup state exists",
+        "AWS S3 backup setup state exists",
+        "No automatic paid provisioning",
+        "Update preflight backs up before rebuild",
+        "ntfy progress hooks are present when configured"
+      ],
+      "tests": [
+        "python3 -m pytest tests -q",
+        "./scripts/certify/backup-smoke.sh",
+        "./scripts/certify/update-smoke.sh"
+      ]
+    },
+    {
+      "id": "verify-integrate-tranche-1",
+      "priority": "p0",
+      "executor": "verifier",
+      "title": "Verify and integrate first tranche: UI foundation, capture, config validation",
+      "allowed_paths": [
+        "tests/**",
+        ".agents/reports/**",
+        "docs/v1-feature-matrix.md"
+      ],
+      "locked_paths": [],
+      "depends_on": [
+        "ui-foundation",
+        "capture-e2e",
+        "config-validation"
+      ],
+      "prompt_file": ".agents/tasks/verify-integrate-tranche-1.md",
+      "acceptance": [
+        "Reports exist for all p0 tasks",
+        "Tests run or exact blockers documented",
+        "Merge order recommended",
+        "No secret-path changes"
+      ],
+      "tests": [
+        "python3 -m pytest tests -q",
+        "./scripts/check-secrets.sh",
+        "docker compose --env-file .env --profile full config"
+      ]
+    }
+  ]
+}

@@ -1,15 +1,12 @@
 <template>
   <q-page class="column q-gutter-lg">
 
-    <section class="hero-panel">
-      <div class="eyebrow">Core Daily</div>
-      <h1>Task Inbox</h1>
-      <p>Open tasks, delegated work, waiting loops, and completion tracking.</p>
-      <div class="row q-gutter-sm q-mt-md">
+    <NexusPageHero eyebrow="Core Daily" title="Task Inbox" subtitle="Open tasks, delegated work, waiting loops, and completion tracking.">
+      <template #actions>
         <q-btn color="primary" unelevated icon="mdi-plus" label="New task" @click="showForm = true" />
         <q-btn outline icon="mdi-refresh" label="Refresh" :loading="loading" @click="load" />
-      </div>
-    </section>
+      </template>
+    </NexusPageHero>
 
     <q-banner v-if="error" class="bg-negative text-white" rounded>
       <template #avatar><q-icon name="mdi-alert-circle-outline" /></template>
@@ -94,6 +91,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import NexusPageHero from '../components/NexusPageHero.vue'
 import { captureUrl, jsonFetch } from '../services/api'
 
 const tasks = ref<any[]>([])

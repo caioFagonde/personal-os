@@ -1,10 +1,6 @@
 <template>
   <q-page class="column q-gutter-lg">
-    <section class="hero-panel">
-      <div class="eyebrow">Continuity</div>
-      <h1>Backup & Restore</h1>
-      <p>Create local backups and upload encrypted bundles to Google Drive or OneDrive once OAuth is connected.</p>
-    </section>
+    <NexusPageHero eyebrow="Continuity" title="Backup & Restore" subtitle="Create local backups and upload encrypted bundles to Google Drive or OneDrive once OAuth is connected." />
 
     <q-banner v-if="error" class="bg-negative text-white" rounded>
       <template #avatar><q-icon name="mdi-alert-circle-outline" /></template>
@@ -44,6 +40,7 @@
 </template>
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import NexusPageHero from '../components/NexusPageHero.vue'
 import { connectorsUrl, jsonFetch } from '../services/api'
 
 const backups = ref<any[]>([])

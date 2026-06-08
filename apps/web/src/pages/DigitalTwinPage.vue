@@ -191,7 +191,7 @@ async function recommend() {
 onMounted(async () => { await Promise.all([load(), loadPolicy()]) })
 </script>
 <style scoped>
-.twin-title { font-size: clamp(34px, 6vw, 76px); line-height: .94; margin: 0; max-width: 1000px; }
+.twin-title { font-size: clamp(24px, 4vw, 42px); line-height: 1; margin: 0; max-width: 1000px; }
 .twin-subtitle { color: var(--nexus-muted); font-size: clamp(16px, 2vw, 20px); max-width: 780px; }
 .signal-grid { display: grid; gap: 14px; }
 .state-code { white-space: pre-wrap; color: #d7e7ff; background: rgba(2, 8, 23, .42); border-radius: 16px; padding: 16px; max-height: 320px; overflow: auto; }
