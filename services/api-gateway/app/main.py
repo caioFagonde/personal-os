@@ -15,6 +15,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from .config_validation import is_sensitive_key, public_setting, validate_setting
 from .crypto import encrypt_text
 from .observability import RedMetrics
 from .release import release_manifest
@@ -447,13 +448,14 @@ async def settings(principal: Principal = Depends(active_principal)) -> dict[str
         "local_first": True,
         "mesh_supported": True,
         "modules_dir": str(MODULES_DIR),
-        "settings": {r["key"]: json_value(r["value"]) for r in rows},
+        "settings": {r["key"]: public_setting(r["key"], json_value(r["value"])) for r in rows},
     }
 
 
 @app.patch("/api/settings/{key}")
 async def patch_setting(key: str, payload: SettingPatch, principal: Principal = Depends(active_principal)) -> dict[str, Any]:
     require_scope(principal, "settings:write")
+    validate_setting(key, payload.value)
     p = await pool()
     async with p.acquire() as conn:
         row = await conn.fetchrow(
@@ -466,8 +468,8 @@ async def patch_setting(key: str, payload: SettingPatch, principal: Principal = 
             key,
             json.dumps(payload.value),
         )
-        await audit(conn, None, uuid_or_none(principal.device_id), None, "setting.patch", "setting", key, {"value": payload.value})
-    return dict(row)
+        await audit(conn, None, uuid_or_none(principal.device_id), None, "setting.patch", "setting", key, {"configured": payload.value not in (None, ""), "sensitive": is_sensitive_key(key)})
+    return {"key": row["key"], "value": public_setting(row["key"], json_value(row["value"])), "restart_required": True}
 
 
 @app.post("/api/cloud/accounts")

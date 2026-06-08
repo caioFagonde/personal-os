@@ -16,6 +16,13 @@ fail() { echo -e "${red}✗${nc} $*";    ((FAIL++)); }
 warn() { echo -e "${yellow}⚠${nc} $*"; ((WARN++)); }
 info() { echo -e "${blue}→${nc} $*"; }
 
+info "Validating configuration (values are never printed)..."
+if python3 scripts/validate-env.py .env; then
+  ok "Configuration values are well formed"
+else
+  fail "Configuration has errors — fix the named variables and rerun doctor"
+fi
+
 # ---------------------------------------------------------------------------
 # 1. Compose config
 # ---------------------------------------------------------------------------

@@ -3,8 +3,14 @@
 Linux:
 
 ```bash
+python3 scripts/validate-env.py --example .env.example
 ./scripts/bootstrap.sh
 ```
+
+Before starting services, validate local configuration with
+`python3 scripts/validate-env.py .env`. The validator reports variable names
+and remediation only; it never prints configured values. Incomplete optional
+providers are warnings and do not prevent core services from starting.
 
 Windows:
 
