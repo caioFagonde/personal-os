@@ -82,7 +82,7 @@ Repair requirements:
 3. Add or preserve tests.
 4. Run the failing command again if possible.
 5. Run:
-   - python3 -m pytest tests -q
+   - scripts/agents/run-pytest.sh tests -q
    - ./scripts/check-secrets.sh
 6. Write a report to:
    .agents/reports/$task/report.md

@@ -10,7 +10,7 @@ QA_TASK="qa-route-endpoint-repair"
 run_checks_raw() {
   echo
   echo "===== Running checks ====="
-  python3 -m pytest tests -q
+  scripts/agents/run-pytest.sh tests -q
   ./scripts/check-secrets.sh
   bash -n scripts/*.sh scripts/agents/*.sh scripts/certify/*.sh 2>/dev/null || true
   docker compose --env-file .env --profile full config >/tmp/personal-os-full.yml
