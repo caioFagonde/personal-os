@@ -1,0 +1,30 @@
+id: intelligence
+name: Intelligence Center
+version: 0.1.0
+description: >
+  Public OSINT, news, RSS, and SearXNG keyword monitoring with daily briefings.
+  Strictly limited to public sources, user-configured feeds, and authorized connectors.
+  No unauthorized surveillance, credential harvesting, private-account scraping,
+  paywall bypassing, offensive SIGINT, or communication interception.
+routes:
+  web: /intelligence
+  api: /api/intelligence
+permissions:
+  - intelligence.read
+  - intelligence.write
+events:
+  publishes:
+    - intelligence.briefing.generated
+    - intelligence.finding.created
+  subscribes:
+    - research.search.completed
+storage:
+  tables:
+    - intelligence_sources
+    - intelligence_monitors
+    - intelligence_findings
+    - intelligence_briefings
+    - intelligence_briefing_items
+sync:
+  enabled: true
+  strategy: local-first
