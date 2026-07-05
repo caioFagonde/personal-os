@@ -51,7 +51,7 @@ export function normalizeStatus(value: string | undefined | null): StatusKey {
 }
 
 export function groupNavigation(items: readonly { id: string; label: string; path: string; icon: string; group: string }[] = navigationModules) {
-  return items.reduce<Record<string, typeof navigationModules[number][]>>((acc, item) => {
+  return items.reduce<Record<string, (typeof items)[number][]>>((acc, item) => {
     acc[item.group] ||= []
     acc[item.group].push(item)
     return acc

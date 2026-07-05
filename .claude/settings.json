@@ -10,7 +10,11 @@
       "Read(./logs/**)",
       "Read(./node_modules/**)",
       "Read(./.git/**)",
-      "Read(./**/*token*)",
+      "Read(./**/*token*.json)",
+      "Read(./**/*token*.txt)",
+      "Read(./**/*token*.pem)",
+      "Read(./**/*token*.key)",
+      "Read(./**/*.token)",
       "Read(./**/*credentials*)",
       "Read(./**/client_secret*.json)",
       "Bash(sudo *)",
@@ -18,7 +22,8 @@
       "Bash(rm -rf ~*)",
       "Bash(docker volume rm *)",
       "Bash(docker system prune *)",
-      "Bash(git push *)"
+      "Bash(git push --force*)",
+      "Bash(git push -f*)"
     ],
     "ask": [
       "Bash(docker compose *)",
