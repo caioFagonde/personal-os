@@ -21,8 +21,12 @@ def test_phase5_files_exist():
 
 def test_no_pirate_connector_modules_are_present():
     forbidden_paths = ["libgen", "zlibrary", "z_library", "scihub", "sci_hub"]
+    # Only scan project source. Build-output/vendor dirs contain third-party
+    # artifacts whose names may incidentally match (e.g. the Rust crate
+    # "libgeneric_array" contains "libgen"); they are not connector modules.
+    skip_dirs = {".git", "target", "node_modules", "dist", ".quasar", ".venv", "__pycache__", ".agent-worktrees"}
     for path in ROOT.rglob("*"):
-        if path.is_file() and ".git" not in path.parts:
+        if path.is_file() and not skip_dirs.intersection(path.parts):
             normalized = path.name.lower().replace("-", "_")
             assert not any(term in normalized for term in forbidden_paths), str(path)
 

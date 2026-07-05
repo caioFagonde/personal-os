@@ -674,6 +674,9 @@ async def proxy_request(base_url: str, path: str, request: Request) -> Response:
     response_headers = {}
     if upstream.headers.get("content-type"):
         response_headers["content-type"] = upstream.headers["content-type"]
+    # Preserve download affordances for artifact streaming (PDFs/files to mobile).
+    if upstream.headers.get("content-disposition"):
+        response_headers["content-disposition"] = upstream.headers["content-disposition"]
     return Response(content=upstream.content, status_code=upstream.status_code, headers=response_headers)
 
 

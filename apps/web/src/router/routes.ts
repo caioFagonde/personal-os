@@ -32,6 +32,7 @@ import InitialVersionReadinessPage from '../pages/InitialVersionReadinessPage.vu
 import CodingAgentPage from '../pages/CodingAgentPage.vue'
 import SettingsPage from '../pages/SettingsPage.vue'
 import IntelligencePage from '../pages/IntelligencePage.vue'
+import FilesPage from '../pages/FilesPage.vue'
 
 export default [
   // Command Center is the canonical daily home (phase-14 contract).
@@ -79,5 +80,6 @@ export default [
   { path: '/live-stack', component: LiveStackPage },
   { path: '/initial-readiness', component: InitialVersionReadinessPage },
   { path: '/settings', component: SettingsPage },
+  { path: '/files', component: FilesPage },
   { path: '/modules/:id', component: ModulePage, props: true },
 ]

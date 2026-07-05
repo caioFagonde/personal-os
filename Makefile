@@ -54,9 +54,12 @@ seed:
 backup:
 	./scripts/backup.sh
 
-.PHONY: backup-v2 backup-verify backup-prune backup-remote
+.PHONY: backup-v2 backup-verify backup-prune backup-remote backup-drive
 backup-v2:
 	./scripts/backup-v2.sh
+
+backup-drive:
+	./scripts/backup-to-drive.sh $(or $(REMOTE),nexus-drive)
 
 backup-verify:
 	@test -n "$(SNAP)" || { echo "Usage: make backup-verify SNAP=backups/<snapshot>"; exit 2; }

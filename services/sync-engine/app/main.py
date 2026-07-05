@@ -10,6 +10,7 @@ from uuid import UUID
 import asyncpg
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from .security import optional_principal, require_scope
@@ -313,12 +314,18 @@ async def initiate_attachment(payload: AttachmentInit) -> dict[str, Any]:
     }
 
 
-def presign_minio_put(object_key: str, content_type: str) -> str:
+def _minio_client(*, ensure_bucket: bool = False):
+    """Build a boto3 S3 client for the internal MinIO endpoint.
+
+    Downloads are streamed through this service (not via presigned URLs) so a
+    phone reaching the PC over Tailscale never needs to resolve the internal
+    ``minio:9000`` host — S3 presigned URLs are host-bound and would not match.
+    """
     try:
         import boto3
         from botocore.client import Config
     except Exception as exc:  # pragma: no cover - optional runtime dependency branch
-        raise HTTPException(status_code=503, detail="boto3 is required for MinIO presigned uploads") from exc
+        raise HTTPException(status_code=503, detail="boto3 is required for MinIO storage") from exc
     if not MINIO_ACCESS_KEY or not MINIO_SECRET_KEY:
         raise HTTPException(status_code=503, detail="MinIO credentials are not configured")
     client = boto3.client(
@@ -329,16 +336,115 @@ def presign_minio_put(object_key: str, content_type: str) -> str:
         config=Config(signature_version="s3v4"),
         region_name="us-east-1",
     )
-    try:
-        client.head_bucket(Bucket=MINIO_BUCKET)
-    except Exception:
-        client.create_bucket(Bucket=MINIO_BUCKET)
+    if ensure_bucket:
+        try:
+            client.head_bucket(Bucket=MINIO_BUCKET)
+        except Exception:
+            client.create_bucket(Bucket=MINIO_BUCKET)
+    return client
+
+
+def presign_minio_put(object_key: str, content_type: str) -> str:
+    client = _minio_client(ensure_bucket=True)
     return client.generate_presigned_url(
         "put_object",
         Params={"Bucket": MINIO_BUCKET, "Key": object_key, "ContentType": content_type},
         ExpiresIn=900,
         HttpMethod="PUT",
     )
+
+
+@app.get("/api/attachments")
+async def list_attachments(module_id: str | None = None, entity_id: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
+    """Browse stored artifacts (PDFs and other files) so a paired device can read
+    what lives on the PC. Metadata only; bytes come from the download route."""
+    limit = max(1, min(limit, 500))
+    entity_uuid = None
+    if entity_id:
+        try:
+            entity_uuid = UUID(entity_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="entity_id must be a UUID") from exc
+    p = await pool()
+    async with p.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, entity_id, module_id, object_key, filename, content_type,
+                   size_bytes, checksum, sync_state, encrypted, created_at
+            FROM attachments
+            WHERE ($1::text IS NULL OR module_id = $1)
+              AND ($2::uuid IS NULL OR entity_id = $2)
+              AND sync_state <> 'deleted'
+            ORDER BY created_at DESC
+            LIMIT $3
+            """,
+            module_id,
+            entity_uuid,
+            limit,
+        )
+    return [
+        {
+            "id": str(r["id"]),
+            "entity_id": str(r["entity_id"]) if r["entity_id"] else None,
+            "module_id": r["module_id"],
+            "filename": r["filename"],
+            "content_type": r["content_type"],
+            "size_bytes": r["size_bytes"],
+            "checksum": r["checksum"],
+            "sync_state": r["sync_state"],
+            "encrypted": r["encrypted"],
+            "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+            "download_path": f"/api/attachments/{r['id']}/download",
+        }
+        for r in rows
+    ]
+
+
+@app.get("/api/attachments/{attachment_id}/download")
+async def download_attachment(attachment_id: UUID):
+    """Stream an artifact's bytes through this service (auth enforced upstream at
+    the gateway). Works for both the local-disk and MinIO backends without
+    exposing internal storage hosts to the client. Content-Disposition is
+    ``inline`` so PDFs/images render directly in the browser or mobile WebView."""
+    p = await pool()
+    async with p.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT object_key, filename, content_type, encrypted, sync_state FROM attachments WHERE id=$1",
+            attachment_id,
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="attachment not found")
+    if row["sync_state"] == "deleted":
+        raise HTTPException(status_code=410, detail="attachment deleted")
+    if row["encrypted"]:
+        # Encrypted blobs are opaque here; the client must decrypt. Refuse inline
+        # rendering rather than serve ciphertext as if it were the document.
+        raise HTTPException(status_code=409, detail={"code": "attachment_encrypted", "message": "attachment is client-encrypted; download via the sync client to decrypt"})
+    filename = row["filename"] or "artifact"
+    media_type = row["content_type"] or "application/octet-stream"
+    disposition = f'inline; filename="{filename}"'
+
+    if STORAGE_BACKEND == "minio":
+        client = _minio_client()
+        try:
+            obj = client.get_object(Bucket=MINIO_BUCKET, Key=row["object_key"])
+        except Exception as exc:
+            raise HTTPException(status_code=404, detail="object not found in MinIO") from exc
+        body = obj["Body"]
+
+        def _iter():
+            try:
+                while chunk := body.read(1024 * 1024):
+                    yield chunk
+            finally:
+                body.close()
+
+        return StreamingResponse(_iter(), media_type=media_type, headers={"Content-Disposition": disposition})
+
+    target = os.path.join(ARTIFACT_DIR, row["object_key"])
+    if not os.path.isfile(target):
+        raise HTTPException(status_code=404, detail="object not found on local storage")
+    return FileResponse(target, media_type=media_type, filename=filename, content_disposition_type="inline")
 
 
 @app.put("/api/attachments/{attachment_id}/content")

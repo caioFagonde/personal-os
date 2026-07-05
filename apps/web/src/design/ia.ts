@@ -17,6 +17,7 @@ export const phaseCSurfaces: SurfaceModule[] = [
   { id: 'projects', label: 'Projects', path: '/projects', icon: 'mdi-folder-star-outline', group: 'Core' },
   { id: 'continuity', label: 'Continuity', path: '/continuity', icon: 'mdi-shield-sync-outline', group: 'Ops' },
   { id: 'ops', label: 'Ops', path: '/ops', icon: 'mdi-wrench-outline', group: 'Ops' },
+  { id: 'files', label: 'Files', path: '/files', icon: 'mdi-file-document-multiple-outline', group: 'Core' },
 ]
 
 // Old path → canonical Phase C path. Router adds redirects for entries here

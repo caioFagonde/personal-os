@@ -16,6 +16,45 @@ export const intelligenceUrl = import.meta.env.VITE_INTELLIGENCE_URL || `${apiUr
 
 export { deviceKey }
 
+export interface Attachment {
+  id: string
+  entity_id: string | null
+  module_id: string | null
+  filename: string
+  content_type: string | null
+  size_bytes: number
+  checksum: string
+  sync_state: string
+  encrypted: boolean
+  created_at: string | null
+  download_path: string
+}
+
+// Browse artifacts stored on the PC (PDFs and other files). Reachable from any
+// paired device over Tailscale via the authenticated gateway sync proxy.
+export async function listAttachments(params: { module_id?: string; entity_id?: string; limit?: number } = {}): Promise<Attachment[]> {
+  const qs = new URLSearchParams()
+  if (params.module_id) qs.set('module_id', params.module_id)
+  if (params.entity_id) qs.set('entity_id', params.entity_id)
+  if (params.limit) qs.set('limit', String(params.limit))
+  const q = qs.toString()
+  return jsonFetch<Attachment[]>(`${syncUrl}/api/attachments${q ? `?${q}` : ''}`)
+}
+
+// Fetch an artifact's bytes with auth headers (a plain <a> can't carry the
+// bearer token) and hand back an object URL suitable for a viewer or download.
+export async function fetchAttachmentObjectUrl(id: string): Promise<string> {
+  const res = await fetch(`${syncUrl}/api/attachments/${id}/download`, { headers: { ...authHeaders() } })
+  if (res.status === 401) {
+    try { await refreshToken(apiUrl) } catch { await registerDevice(apiUrl) }
+    const retry = await fetch(`${syncUrl}/api/attachments/${id}/download`, { headers: { ...authHeaders() } })
+    if (!retry.ok) throw new Error(`${retry.status} ${retry.statusText}`)
+    return URL.createObjectURL(await retry.blob())
+  }
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+  return URL.createObjectURL(await res.blob())
+}
+
 export async function jsonFetch<T>(url: string, options: RequestInit = {}, retry = true): Promise<T> {
   const headers = {
     'content-type': 'application/json',
