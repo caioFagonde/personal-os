@@ -3,7 +3,6 @@ import pytest
 from app.runtime import (
     OCRBlock,
     Detection,
-    ProviderState,
     TranscriptSegment,
     classify_asset,
     detect_runtime_health,

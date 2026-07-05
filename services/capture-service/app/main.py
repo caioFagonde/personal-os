@@ -14,16 +14,24 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from .delegation import Contact, ContactChannel, DelegationRule, build_delegation_messages
+from .graph import link, object_id_for, register_object, set_project, upsert_chunks
 from .parser import parse_capture_command, parse_note_frontmatter, task_title_from_body
 from .tasking import follow_up_at, initial_task_status, priority_to_rank, stable_task_fingerprint
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://personal_os:personal_os@localhost:5432/personal_os")
-DEFAULT_SECRETARY_EMAIL = os.environ.get("SECRETARY_EMAIL", "crisoliveirasousa73@gmail.com")
-DEFAULT_SECRETARY_WHATSAPP = os.environ.get("SECRETARY_WHATSAPP", "+115944540999")
+# Privacy invariant: no personal addresses are ever shipped as code defaults.
+# Delegation to the 'secretary' contact fails closed with a structured 409
+# (code=missing_channels, required_env=[SECRETARY_EMAIL, SECRETARY_WHATSAPP])
+# until these are provided via the environment.
+DEFAULT_SECRETARY_EMAIL = os.environ.get("SECRETARY_EMAIL", "")
+DEFAULT_SECRETARY_WHATSAPP = os.environ.get("SECRETARY_WHATSAPP", "")
 WHATSAPP_PROVIDER = os.environ.get("WHATSAPP_PROVIDER", "cloud_api")
 log = logging.getLogger("capture-service")
 app = FastAPI(title="Personal OS Capture Service", version="0.9.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+# CORS origins are configurable via env (comma-separated). "*" is the local-dev
+# default; restrict to the gateway origin(s) on any non-tailnet deployment.
+CORS_ALLOW_ORIGINS = [o.strip() for o in os.environ.get("CORS_ALLOW_ORIGINS", "*").split(",") if o.strip()] or ["*"]
+app.add_middleware(CORSMiddleware, allow_origins=CORS_ALLOW_ORIGINS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 _pool: asyncpg.Pool | None = None
 
 
@@ -72,6 +80,7 @@ class TaskPatch(BaseModel):
     priority: int | None = Field(default=None, ge=1, le=5)
     due_at: datetime | None = None
     completed_at: datetime | None = None
+    project_id: UUID | None = None  # projects.id — links the task into the graph registry
 
 
 class DelegationRequest(BaseModel):
@@ -81,9 +90,20 @@ class DelegationRequest(BaseModel):
     requires_approval: bool = False
 
 
+class CaptureItemPatch(BaseModel):
+    status: str = Field(pattern="^(inbox|triaged|archived)$")
+    triaged_note_id: UUID | None = None
+
+
 @app.on_event("startup")
 async def startup() -> None:
     global _pool
+    if not DEFAULT_SECRETARY_EMAIL and not DEFAULT_SECRETARY_WHATSAPP:
+        log.warning(
+            "SECRETARY_EMAIL / SECRETARY_WHATSAPP are not set. "
+            "Delegation to the 'secretary' contact will fail closed with a structured 409 "
+            "(code=missing_channels) until they are configured in .env and capture-service is restarted."
+        )
     _pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=10)
 
 
@@ -133,7 +153,63 @@ async def create_capture(payload: CaptureCreate) -> dict[str, Any]:
         messages: list[dict[str, Any]] = []
         if command.is_delegation:
             messages = await delegate_task(conn, UUID(task["id"]), command.target or "secretary", command.channels or ["whatsapp", "email"], requires_approval=False)
+        # Graph registry dual-write (best-effort; must never fail the capture).
+        capture_obj = await register_object(
+            conn, kind="capture_item", domain_table="capture_items", domain_id=capture["id"],
+            title=title, status="inbox", tags=command.tags or [], meta={"source_kind": payload.source_kind},
+        )
+        await upsert_chunks(conn, capture_obj, [payload.text])
+        task_obj = await register_object(
+            conn, kind="task", domain_table="tasks", domain_id=task["id"],
+            title=task["title"], status=task["status"], tags=list(task["tags"] or []), meta={"source_kind": "capture"},
+        )
+        await upsert_chunks(conn, task_obj, [f"{task['title']}\n\n{task['body'] or ''}".strip()])
+        await link(conn, task_obj, capture_obj, "derived_from")
     return {"capture": dict(capture), "task": dict(task), "messages": messages}
+
+
+@app.get("/api/capture/items")
+async def list_capture_items(status: str = "inbox", limit: int = 200) -> list[dict[str, Any]]:
+    p = await pool()
+    async with p.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT c.id::text, c.raw_text, c.source_kind, c.status, c.triaged_note_id::text, c.created_at,
+                   t.id::text AS task_id, t.status AS task_status, t.title AS task_title
+            FROM capture_items c
+            LEFT JOIN tasks t ON t.source_kind='capture' AND t.source_id = c.id::text
+            WHERE ($1::text IS NULL OR $1 = 'all' OR c.status = $1)
+            ORDER BY c.created_at DESC LIMIT $2
+            """,
+            status,
+            min(max(limit, 1), 500),
+        )
+    return [dict(r) for r in rows]
+
+
+@app.patch("/api/capture/items/{item_id}")
+async def patch_capture_item(item_id: UUID, patch: CaptureItemPatch) -> dict[str, Any]:
+    p = await pool()
+    async with p.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            UPDATE capture_items SET status=$2, triaged_note_id=COALESCE($3, triaged_note_id), updated_at=now()
+            WHERE id=$1
+            RETURNING id::text, raw_text, source_kind, status, triaged_note_id::text, created_at
+            """,
+            item_id,
+            patch.status,
+            patch.triaged_note_id,
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="capture item not found")
+        # Keep the graph registry lifecycle in step (best-effort).
+        await register_object(
+            conn, kind="capture_item", domain_table="capture_items", domain_id=item_id,
+            title=(row["raw_text"] or "").strip().splitlines()[0][:200] if row["raw_text"] else "Capture",
+            status=row["status"],
+        )
+    return dict(row)
 
 
 @app.get("/api/tasks")
@@ -178,6 +254,11 @@ async def create_task(payload: TaskCreate) -> dict[str, Any]:
             payload.source_id,
         )
         await record_task_event(conn, UUID(row["id"]), "task.created", {"status": payload.status})
+        task_obj = await register_object(
+            conn, kind="task", domain_table="tasks", domain_id=row["id"],
+            title=row["title"], status=row["status"], tags=list(row["tags"] or []), meta={"source_kind": payload.source_kind},
+        )
+        await upsert_chunks(conn, task_obj, [f"{row['title']}\n\n{row['body'] or ''}".strip()])
     return dict(row)
 
 
@@ -207,6 +288,21 @@ async def patch_task(task_id: UUID, patch: TaskPatch) -> dict[str, Any]:
             completed_at,
         )
         await record_task_event(conn, task_id, "task.updated", {"status": status, "priority": priority})
+        # Keep the graph registry in step (best-effort).
+        task_obj = await register_object(
+            conn, kind="task", domain_table="tasks", domain_id=task_id,
+            title=row["title"], status=row["status"], tags=list(row["tags"] or []),
+        )
+        if patch.project_id is not None:
+            project_obj = await object_id_for(conn, "projects", patch.project_id)
+            if project_obj is None:
+                raise HTTPException(status_code=404, detail={
+                    "code": "project_not_found",
+                    "message": f"Project {patch.project_id} has no graph registry entry.",
+                    "action": "Create the project first (POST /api/projects on module-service).",
+                })
+            await set_project(conn, task_obj, project_obj)
+            await record_task_event(conn, task_id, "task.project_assigned", {"project_id": str(patch.project_id)})
     return dict(row)
 
 

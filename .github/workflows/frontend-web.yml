@@ -1,33 +1,44 @@
-name: frontend-web
+name: Frontend Web
+
+on:
+  push:
+    branches: [main]
+  pull_request:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
-on:
-  pull_request:
-  push:
-    branches: [ main ]
-
 jobs:
-  web-test-build:
+  web-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:
-          version: 9.12.0
+          version: 9
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile=false
-      - name: Unit tests with coverage
-        run: pnpm --dir apps/web coverage
-      - name: Typecheck
-        run: pnpm --dir apps/web typecheck
-      - name: Build SPA
-        run: pnpm --dir apps/web build
-      - uses: actions/upload-artifact@v4
+          node-version: 20
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Unit tests (vitest)
+        run: pnpm --dir apps/web test
+      - name: Type check
+        run: pnpm --dir apps/web exec vue-tsc --noEmit
+      - name: Design system tests
+        run: pnpm --dir packages/design-system test
+
+  web-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
         with:
-          name: web-dist
-          path: apps/web/dist
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Quasar SPA build
+        run: pnpm --dir apps/web exec quasar build

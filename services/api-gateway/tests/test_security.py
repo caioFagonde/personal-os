@@ -92,7 +92,8 @@ def test_verify_rejects_unknown_kid_and_future_nbf():
     payload = security.verify_token(token)
     payload['nbf'] = payload['exp'] + 1000
     signing_input = f"{security._b64e(security._json_dumps(header).encode())}.{security._b64e(security._json_dumps(payload).encode())}"
-    import hmac, hashlib
+    import hmac
+    import hashlib
     signed = hmac.new(security.JWT_KEYS[security.ACTIVE_JWT_KID].encode(), signing_input.encode(), hashlib.sha256).digest()
     with pytest.raises(HTTPException):
         security.verify_token(f"{signing_input}.{security._b64e(signed)}")

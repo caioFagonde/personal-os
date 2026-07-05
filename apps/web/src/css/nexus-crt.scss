@@ -1,0 +1,236 @@
+/* ============================================================================
+   GREEN GLASS theme layer — v2 (docs/DESIGN_LANGUAGE.md, Revision 2)
+   Loaded AFTER app.scss (quasar.config.ts css array). app.scss stays untouched.
+   One bitmap face. One sheet of glass. Hierarchy = inverse video + brightness
+   + box drawing. Zero shadows, zero radii on the glass. Wear lives in the
+   chassis (shell), never in the content.
+   Install: pnpm --dir apps/web add @fontsource/vt323
+   ========================================================================== */
+
+@import '@fontsource/vt323/400.css';
+
+:root {
+  /* glass + phosphor */
+  --nexus-bg: #0a140c;            /* dark green glass, not black */
+  --nexus-bg-2: #122117;          /* center brightening */
+  --nexus-panel: transparent;     /* boxes are drawn, not filled */
+  --nexus-panel-strong: rgba(18, 33, 23, 0.6);
+  --nexus-border: #2f9a55;        /* dim phosphor */
+  --nexus-rule: #1a5c33;          /* faint */
+  --nexus-text: #5dff86;          /* bright phosphor */
+  --nexus-muted: #2f9a55;
+  --nexus-accent: #5dff86;
+  --nexus-accent-2: #2f9a55;
+  --nexus-good: #5dff86;
+  --nexus-warn: #ffb347;
+  --nexus-alarm: #ff6b5e;
+  --nexus-ink: #07130b;           /* text on inverse video */
+  --nexus-tape: #cfc8b4;          /* chassis only */
+  --glow: 0 0 1px currentColor, 0 0 7px rgba(93, 255, 134, 0.45);
+  color-scheme: dark;
+}
+
+/* --- glass ------------------------------------------------------------------ */
+body {
+  font-family: 'VT323', ui-monospace, monospace;
+  font-size: 19px;
+  line-height: 1.2;
+  background: radial-gradient(ellipse 130% 110% at 50% 40%, var(--nexus-bg-2), var(--nexus-bg) 55%, #060d08 100%);
+  color: var(--nexus-text);
+  text-shadow: var(--glow);
+}
+/* raster pitch — part of the rendering (contract: pitch <= 4px) */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9998;
+  background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.28) 0 1px, transparent 1px 3px);
+  mix-blend-mode: multiply;
+}
+
+/* --- kill modern idioms everywhere on the glass ------------------------------- */
+.glass-card, .glass-panel, .hero-panel, .q-card, .q-banner, .q-menu, .q-dialog__inner > div {
+  background: transparent;
+  border: 1px solid var(--nexus-border);
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.q-card, .q-banner { background: var(--nexus-panel-strong); }
+
+/* --- terminal header (reskins hero) ------------------------------------------- */
+.hero-panel { border: none; padding: 4px 2px 8px; }
+.hero-panel h1 {
+  font-family: inherit;
+  font-size: 22px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--nexus-text);
+}
+.hero-panel p { color: var(--nexus-muted); text-shadow: none; }
+.eyebrow {
+  font-family: inherit;
+  color: var(--nexus-muted);
+  letter-spacing: 2px;
+  font-weight: 400;
+  font-size: 17px;
+}
+.eyebrow::before { content: 'NEXUS/OS · '; color: var(--nexus-rule); }
+
+/* --- box-drawn sections ---------------------------------------------------------- */
+.section-heading {
+  font-family: inherit;
+  font-size: 17px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--nexus-text);
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+.section-heading::before { content: '─── '; color: var(--nexus-rule); }
+.section-heading::after { content: ' ───────────'; color: var(--nexus-rule); }
+
+/* --- inverse-video controls (buttons) --------------------------------------------- */
+.q-btn {
+  font-family: inherit;
+  font-size: 17px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  border-radius: 0;
+  box-shadow: none;
+  text-shadow: none;
+}
+.q-btn--unelevated {
+  background: var(--nexus-text) !important;
+  color: var(--nexus-ink) !important;
+}
+.q-btn--outline {
+  border: 1px solid var(--nexus-border);
+  color: var(--nexus-text);
+  text-shadow: var(--glow);
+}
+.q-btn--flat { color: var(--nexus-muted); }
+.q-btn:active { filter: brightness(0.75); transform: none; }
+.q-btn .q-focus-helper { display: none; }
+
+/* --- tags / lamps -------------------------------------------------------------------- */
+.q-badge {
+  border-radius: 0;
+  font-family: inherit;
+  font-size: 15px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  text-shadow: none;
+  background: var(--nexus-muted);
+  color: var(--nexus-ink);
+}
+.q-badge.bg-warning { background: var(--nexus-warn); color: var(--nexus-ink); }
+.q-badge.bg-negative { background: var(--nexus-alarm); color: var(--nexus-ink); }
+.q-badge.bg-positive { background: var(--nexus-good); color: var(--nexus-ink); }
+
+/* --- tables: character-cell rows ------------------------------------------------------ */
+.q-table, table { color: var(--nexus-text); }
+.q-table th, th {
+  color: var(--nexus-muted);
+  font-weight: 400;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--nexus-rule);
+}
+.q-table td, td { border-bottom: 1px dotted var(--nexus-rule); }
+.q-table tbody tr:hover td {
+  background: var(--nexus-text);
+  color: var(--nexus-ink);
+  text-shadow: none;
+}
+
+/* --- inputs: prompt idiom -------------------------------------------------------------- */
+.q-field--outlined .q-field__control {
+  background: transparent;
+  border-radius: 0;
+}
+.q-field__native, input, textarea {
+  font-family: inherit;
+  color: var(--nexus-text);
+  caret-color: var(--nexus-text);
+}
+:focus-visible { outline: 2px solid var(--nexus-warn); outline-offset: 2px; }
+
+/* --- shell = chassis edge (wear and warmth live in the shell only) ---------------------- */
+.app-header, .app-drawer, .mobile-nav {
+  background: #0d1a10;
+  backdrop-filter: none;
+  border-color: var(--nexus-rule);
+}
+.brand-mark { border-radius: 0; background: transparent; border: 1px solid var(--nexus-border); color: var(--nexus-text); box-shadow: none; }
+.brand-title { font-family: inherit; letter-spacing: 3px; text-transform: uppercase; color: var(--nexus-text); }
+.brand-caption { color: var(--nexus-muted); }
+.module-dock__item { border-radius: 0; font-size: 18px; }
+.module-dock__item.q-router-link--active {
+  background: var(--nexus-text);
+  color: var(--nexus-ink);
+  text-shadow: none;
+  box-shadow: none;
+}
+.module-dock__heading { color: var(--nexus-rule); letter-spacing: 2px; }
+
+/* --- metric readouts ---------------------------------------------------------------------- */
+.metric-card { border-radius: 0; }
+.metric-card:hover { transform: none; border-color: var(--nexus-text); }
+.metric-card__value { font-family: inherit; color: var(--nexus-text); font-weight: 400; }
+.metric-card__label { color: var(--nexus-muted); letter-spacing: 2px; text-transform: uppercase; }
+
+/* --- function-key bar (SystemLine component mounts .fkey-bar) ------------------------------- */
+.fkey-bar {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 2000;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 14px;
+  align-items: center;
+  background: #060d08;
+  border-top: 1px solid var(--nexus-rule);
+  padding: 3px 12px;
+  font-size: 17px;
+  color: var(--nexus-muted);
+}
+.fkey-bar b {
+  background: var(--nexus-text);
+  color: var(--nexus-ink);
+  font-weight: 400;
+  padding: 0 5px;
+  margin-right: 5px;
+  text-shadow: none;
+}
+.fkey-bar .seg--warn b { background: var(--nexus-warn); }
+.fkey-bar .seg--alarm b { background: var(--nexus-alarm); }
+.fkey-bar a { color: inherit; text-decoration: none; }
+
+/* --- block cursor ----------------------------------------------------------------------------- */
+.block-cursor {
+  display: inline-block;
+  width: 10px;
+  height: 1em;
+  background: var(--nexus-text);
+  vertical-align: -0.15em;
+  animation: gg-blink 1s steps(1) infinite;
+}
+@keyframes gg-blink { 50% { opacity: 0; } }
+
+/* --- density (ux preference, body class from services/preferences.ts) --------------------------- */
+body.density-compact {
+  .q-item { min-height: 32px; padding-top: 2px; padding-bottom: 2px; }
+  .q-card__section { padding: 10px 14px; }
+  .q-table th, .q-table td { padding: 3px 8px; }
+  font-size: 17px;
+}
+
+/* --- restraint ---------------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .block-cursor { animation: none; }
+  * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}

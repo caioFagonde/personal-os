@@ -20,7 +20,10 @@ from .routines import recommended_routines
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://personal_os:personal_os@localhost:5432/personal_os")
 log = logging.getLogger("study-companion-service")
 app = FastAPI(title="Personal OS Study Companion", version="0.9.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+# CORS origins are configurable via env (comma-separated). "*" is the local-dev
+# default; restrict to the gateway origin(s) on any non-tailnet deployment.
+CORS_ALLOW_ORIGINS = [o.strip() for o in os.environ.get("CORS_ALLOW_ORIGINS", "*").split(",") if o.strip()] or ["*"]
+app.add_middleware(CORSMiddleware, allow_origins=CORS_ALLOW_ORIGINS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 _pool: asyncpg.Pool | None = None
 
 

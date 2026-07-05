@@ -1,62 +1,124 @@
 <template>
-  <q-layout view="hHh Lpr fFf" class="nexus-shell">
-    <q-header class="app-header" bordered>
-      <q-toolbar>
-        <q-btn v-if="layout.drawer" flat round icon="mdi-menu" @click="drawer = !drawer" />
-        <q-toolbar-title class="row items-center no-wrap q-gutter-sm">
-          <div class="brand-mark">N</div>
-          <div>
-            <div class="brand-title">Nexus Core</div>
-            <div class="brand-caption">Sovereign personal operating substrate</div>
-          </div>
-        </q-toolbar-title>
-        <q-btn flat no-caps icon="mdi-magnify" :label="layout.commandPaletteShortcut" @click="openPalette" />
-        <q-btn flat round icon="mdi-cog-outline" to="/settings" />
-        <q-btn flat round icon="mdi-theme-light-dark" @click="toggleDark" />
-      </q-toolbar>
-    </q-header>
+  <q-layout view="hHh Lpr fFf" class="bp-shell">
+    <!-- Signature layer: full-bleed WebGL aurora -->
+    <AuroraBackground />
 
-    <q-drawer v-if="layout.drawer" v-model="drawer" show-if-above :width="288" class="app-drawer">
-      <ModuleDock />
-    </q-drawer>
+    <!-- Ambient chrome -->
+    <AmbientBar
+      :status="status"
+      @home="goHome"
+      @search="openPalette"
+      @settings="router.push('/settings')"
+    />
 
-    <q-page-container :style="safeArea">
-      <div class="page-shell">
-        <SystemStatusRibbon :status="status" :online="online" :pending-mutations="pendingMutations" :conflicts="conflicts" />
-        <router-view v-slot="{ Component }">
+    <q-page-container class="bp-shell__pages" :style="safeArea">
+      <router-view v-slot="{ Component, route: current }">
+        <!-- Home renders bare over the aurora -->
+        <component :is="Component" v-if="current.path === '/'" />
+
+        <!-- Every other page lives on the stage -->
+        <StagePanel v-else :module="currentModule" @back="goHome">
+          <SystemStatusRibbon
+            :status="status"
+            :online="online"
+            :pending-mutations="pendingMutations"
+            :conflicts="conflicts"
+          />
           <transition name="page-fade" mode="out-in">
             <component :is="Component" />
           </transition>
-        </router-view>
-      </div>
+        </StagePanel>
+      </router-view>
     </q-page-container>
 
     <BottomNav v-if="layout.bottomNav" />
     <CommandPalette ref="palette" />
+    <FKeyBar v-if="!layout.bottomNav" />
+    <BiosBoot />
   </q-layout>
 </template>
+
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { Dark } from 'quasar'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import BottomNav from './components/BottomNav.vue'
 import CommandPalette from './components/CommandPalette.vue'
-import ModuleDock from './components/ModuleDock.vue'
+import FKeyBar from './components/FKeyBar.vue'
+import BiosBoot from './components/BiosBoot.vue'
 import SystemStatusRibbon from './components/SystemStatusRibbon.vue'
+import AuroraBackground from './components/bigpicture/AuroraBackground.vue'
+import AmbientBar from './components/bigpicture/AmbientBar.vue'
+import StagePanel from './components/bigpicture/StagePanel.vue'
+import { moduleByPath } from './design/bigpicture'
+import { setAmbience, setDim } from './composables/useAmbience'
+import { useInputNav } from './composables/useInputNav'
 import { detectPlatform, preferredLayout, safeAreaStyle } from './services/platform'
+import { initDensity } from './services/preferences'
+import { startSyncWorker } from './services/sync-worker'
+
+initDensity()
+
+const router = useRouter()
+const route = useRoute()
 
 const platform = detectPlatform()
 const layout = preferredLayout(platform)
-const drawer = ref(layout.drawer)
 const palette = ref<InstanceType<typeof CommandPalette> | null>(null)
 const online = ref(typeof navigator === 'undefined' ? true : navigator.onLine)
 const pendingMutations = ref(0)
 const conflicts = ref(0)
 const status = computed(() => (online.value ? 'ok' : 'offline'))
 const safeArea = safeAreaStyle(platform)
-function openPalette() { if (palette.value) palette.value.open = true }
-function toggleDark() { Dark.set(!Dark.isActive) }
+
+const currentModule = computed(() => moduleByPath(route.path) ?? null)
+
+function goHome() {
+  if (route.path !== '/') router.push('/')
+}
+
+function openPalette() {
+  if (palette.value) palette.value.open = true
+}
+
+// Detail pages dim the aurora so dense content reads; their module re-tints it.
+watch(
+  () => route.path,
+  (path) => {
+    setDim(path === '/' ? 0 : 0.75)
+    const mod = moduleByPath(path)
+    if (mod) setAmbience(mod.accent, mod.accent2)
+  },
+  { immediate: true },
+)
+
+// Shell-level controls: B / Esc backs out to home, Start / ⌘K opens search.
+useInputNav((action) => {
+  if (action === 'back' && route.path !== '/') {
+    const paletteOpen = !!palette.value?.open
+    if (!paletteOpen) goHome()
+  }
+  if (action === 'menu') openPalette()
+})
+
+function onOpenPalette() {
+  openPalette()
+}
+function onOnline() {
+  online.value = true
+}
+function onOffline() {
+  online.value = false
+}
+
 onMounted(() => {
-  window.addEventListener('online', () => { online.value = true })
-  window.addEventListener('offline', () => { online.value = false })
+  window.addEventListener('online', onOnline)
+  window.addEventListener('offline', onOffline)
+  window.addEventListener('bp:open-palette', onOpenPalette)
+  startSyncWorker() // Phase E: policy-gated queue drain + per-device heartbeat
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('online', onOnline)
+  window.removeEventListener('offline', onOffline)
+  window.removeEventListener('bp:open-palette', onOpenPalette)
 })
 </script>

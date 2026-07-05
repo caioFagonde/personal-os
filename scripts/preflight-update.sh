@@ -18,4 +18,45 @@ else
   bash -c "$BACKUP_COMMAND"
 fi
 notify "Update preflight backup completed"
+
+# Phase E4 gate: require a VERIFIED backup < 24h old before an update proceeds.
+# Opt-out for environments without the DB reachable at preflight time.
+REQUIRE_VERIFIED_BACKUP=${REQUIRE_VERIFIED_BACKUP:-true}
+MANIFESTS_URL=${CONNECTOR_MANIFESTS_URL:-http://localhost:8094/api/connectors/backup/manifests}
+if [[ "$REQUIRE_VERIFIED_BACKUP" == "true" ]] && ! $DRY_RUN; then
+  if command -v curl >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1; then
+    if curl -fsS "$MANIFESTS_URL" 2>/dev/null | python3 -c '
+import json, sys
+from datetime import datetime, timezone
+try:
+    rows = json.load(sys.stdin)
+except Exception:
+    sys.exit(3)
+now = datetime.now(timezone.utc)
+for r in rows:
+    v = r.get("verified_at")
+    if not v:
+        continue
+    try:
+        ts = datetime.fromisoformat(str(v).replace("Z", "+00:00"))
+    except ValueError:
+        continue
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=timezone.utc)
+    if (now - ts).total_seconds() < 24 * 3600:
+        sys.exit(0)
+sys.exit(1)
+'; then
+      echo "Verified backup < 24h confirmed"
+    else
+      echo "No verified backup < 24h old. Run: make backup && scripts/backup-verify.sh backups/<snapshot>" >&2
+      notify "Update preflight blocked: no verified backup < 24h"
+      echo "Set REQUIRE_VERIFIED_BACKUP=false to override (not recommended)." >&2
+      exit 2
+    fi
+  else
+    echo "curl/python3 unavailable — cannot confirm verified backup freshness; set REQUIRE_VERIFIED_BACKUP=false to proceed anyway." >&2
+    exit 2
+  fi
+fi
 echo "Update preflight passed"

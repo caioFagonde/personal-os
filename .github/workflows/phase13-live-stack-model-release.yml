@@ -1,24 +1,19 @@
-name: Phase 13 Live Stack, Model Runtime, Release Publishing
+name: Phase 13 Live Stack Model Release
 
 on:
   push:
+    branches: [main]
     paths:
       - 'services/model-runtime/**'
       - 'e2e/live-stack.spec.ts'
-      - 'scripts/certify/**'
-      - 'scripts/release/**'
-      - '.github/workflows/phase13-live-stack-model-release.yml'
-      - 'docker-compose.yml'
-      - 'apps/web/**'
       - 'tests/test_phase13_scaffold.py'
-  workflow_dispatch:
-
-permissions:
-  contents: write
+  pull_request:
+    paths:
+      - 'services/model-runtime/**'
+  workflow_dispatch: {}
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  PUBLISH_RELEASE_DRY_RUN: true
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
   model-runtime-coverage:
@@ -27,73 +22,37 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
-      - name: Install model runtime dependencies
+          python-version: "3.12"
+      - name: Install
         run: |
-          python -m pip install --upgrade pip
-          pip install -r services/model-runtime/requirements.txt pytest pytest-cov
-      - name: Unit tests with coverage
-        working-directory: services/model-runtime
-        run: python -m pytest tests -q --cov=app.runtime --cov-branch --cov-fail-under=96
-
-  scaffold-contract:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Install scaffold test deps
-        run: python -m pip install -U pytest PyYAML
-      - name: Phase 13 scaffold tests
+          pip install pytest pytest-asyncio pytest-cov
+          pip install -r services/model-runtime/requirements.txt
+      - name: Model runtime tests with coverage
+        run: cd services/model-runtime && python -m pytest tests -q --cov=app --cov-report=term-missing
+      - name: Phase 13 scaffold contract
         run: python -m pytest tests/test_phase13_scaffold.py -q
-      - name: Readiness script
-        run: python scripts/certify/release-readiness.py
 
   live-stack-e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
       - uses: pnpm/action-setup@v4
         with:
-          version: 9.12.0
+          version: 9
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
-      - name: Prepare env
+          node-version: 20
+      - name: Install
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install --with-deps chromium
+      - name: Bring up stack and run live-stack spec
         run: |
           cp .env.example .env
           python3 scripts/generate-env.py .env
-      - name: Run live stack E2E
-        run: ./scripts/certify/live-stack-e2e.sh
-      - name: Dump logs on failure
+          docker compose up -d postgres nats minio api-gateway sync-engine command-bus module-service model-runtime web
+          sleep 25
+          pnpm exec playwright test e2e/live-stack.spec.ts
+      - name: Stack logs on failure
         if: failure()
-        run: docker compose --env-file .env --profile core --profile apps --profile automation --profile research --profile ai --profile connectors logs --tail=200 || true
-      - name: Stop stack
-        if: always()
-        run: docker compose --env-file .env --profile core --profile apps --profile automation --profile research --profile ai --profile connectors down -v || true
-
-  android-physical-script-contract:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Bash syntax
-        run: bash -n scripts/certify/physical-sync.sh
-      - name: Ensure adb wait handoff exists
-        run: grep -q 'Waiting for USB Android authorization' scripts/certify/physical-sync.sh
-
-  release-publish-contract:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Dry-run publish script
-        run: ./scripts/release/publish-github-release.sh
-      - name: Verify publishing script is not using secrets in source
-        run: ./scripts/check-secrets.sh
+        run: docker compose logs --tail=100

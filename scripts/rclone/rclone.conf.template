@@ -1,0 +1,19 @@
+# rclone remotes for Nexus Prime backups (Phase E4).
+#
+# Copy to ~/.config/rclone/rclone.conf and finish OAuth interactively with
+# `rclone config` — NO secrets are committed to this repo. Two remotes:
+#   nexus-drive : offsite copy (Google Drive), backups uploaded age-encrypted.
+#   nexus-disk  : second local/USB/NAS copy (the "2" in 3-2-1).
+#
+# After editing, verify with:  rclone lsd nexus-drive:
+
+[nexus-drive]
+type = drive
+scope = drive.file
+# token = {...}   # filled by `rclone config` — never hand-edit / commit
+
+[nexus-disk]
+type = local
+# point this at an external disk or NAS mount:
+# nothing to configure here; use the path directly, e.g.
+#   rclone copy backups/<snapshot> nexus-disk:/mnt/usb/NexusBackups/<snapshot>

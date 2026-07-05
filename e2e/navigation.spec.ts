@@ -19,6 +19,16 @@ const routes = [
   ['/backup-restore', 'Backup'],
   ['/certification', 'Certification'],
   ['/release-center', 'Release'],
+  // Phase C surfaces
+  ['/today', 'Today'],
+  ['/projects', 'Projects'],
+  ['/continuity', 'Continuity'],
+  ['/ops', 'Ops'],
+  // Phase C redirects resolve to their canonical surfaces
+  ['/daily', 'Today'],
+  ['/agents', 'Coding|Agent'],
+  ['/twin', 'Twin|Digital'],
+  ['/notes', 'Zettel'],
 ] as const
 
 test.describe('premium shell navigation', () => {

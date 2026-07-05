@@ -1,151 +1,52 @@
-# Secrets and env
+# --- secrets & personal data (never tracked) ---
 .env
 .env.*
 !.env.example
-*.pem
-*.key
-*.crt
-*.p12
-*.pfx
-*token*.json
-credentials.json
-client_secret*.json
 secrets/
 .private/
-.sops.yaml
-age.key
-*.kdbx
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+client_secret*.json
 
-# Logs
-*.log
+# --- runtime data (local-first, backed up separately) ---
+data/
+backups/
 logs/
-npm-debug.log*
-yarn-debug.log*
-pnpm-debug.log*
-
-# OS/editor
-.DS_Store
-Thumbs.db
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Node/frontend
-node_modules/
-.pnpm-store/
-dist/
-build/
-.output/
-.nuxt/
-.quasar/
-.turbo/
-coverage/
-
-# Python
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-.venv/
-venv/
-env/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.coverage
-htmlcov/
-dist/
-build/
-*.egg-info/
-
-# Docker/runtime
-docker-data/
-volumes/
-data/postgres/
-data/postgis/
-data/qdrant/
-data/minio/
-data/ollama/
-data/nats/
-data/ntfy/
-data/tailscale/
-pg-data/
-surreal-data/
-qdrant_storage/
-minio_data/
-
-# Generated artifacts
 artifacts/
 exports/
 generated/
-workspace/
 cache/
-tmp/
-*.sqlite
-*.sqlite3
-*.db
-*.duckdb
-
-# Mobile
-android/
-ios/
-*.apk
-*.aab
-*.ipa
-*.aar
-*.keystore
-*.jks
-mobile/android/.gradle/
-mobile/android/local.properties
-mobile/android/app/build/
-mobile/ios/Pods/
-mobile/ios/build/
-mobile/ios/DerivedData/
-apps/web/src-capacitor/android/
-apps/web/src-capacitor/ios/
-
-# Desktop
-*.AppImage
-*.dmg
-*.exe
-*.msi
-*.deb
-*.rpm
-release/
-out/
-apps/desktop/src-tauri/target/
-
-# Maps/media/large local data
-*.mbtiles
-*.pmtiles
-*.osm.pbf
-*.tif
-*.tiff
-*.gpkg
-*.las
-*.laz
-media/
 pdf-cache/
+memory/*.local.md
+workspace/agent-worktrees/
+.agent-worktrees/
+.agents/reports/
 
-# Local AI/cache
-.ollama/
-models/
-
-# Phase 4 native packaging
+# --- build & dependency output ---
+node_modules/
+dist/
+.quasar/
+apps/web/dist/
 apps/desktop/src-tauri/target/
-apps/mobile/android/
-apps/mobile/ios/
-apps/web/coverage/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.coverage
 coverage/
-*.lcov
+htmlcov/
+.pytest_cache/
+.ruff_cache/
+playwright-report/
+test-results/
 
-# Phase 5 runtime research/map caches
-data/research/
-data/maps/*.mbtiles
-data/maps/*.pmtiles
-data/maps/*.osm.pbf
-data/maps/*.gpkg
-# Local GitHub Actions log captures
+# --- local tooling scratch ---
 latest_commit_logs.txt
 gh-logs.sh
+*.log
+.DS_Store
+Thumbs.db
+tmp/

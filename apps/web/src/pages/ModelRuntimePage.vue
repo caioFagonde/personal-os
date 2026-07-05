@@ -103,8 +103,8 @@ async function load() {
   error.value = ''
   try {
     const [runtimeData, providerData] = await Promise.all([
-      jsonFetch(`${modelRuntimeUrl}/api/model-runtime/runtimes`),
-      jsonFetch(`${modelRuntimeUrl}/api/model-runtime/providers`),
+      jsonFetch<Record<string, unknown>>(`${modelRuntimeUrl}/api/model-runtime/runtimes`),
+      jsonFetch<{ providers?: unknown[] }>(`${modelRuntimeUrl}/api/model-runtime/providers`),
     ])
     status.value = runtimeData
     providerList.value = providerData.providers || []

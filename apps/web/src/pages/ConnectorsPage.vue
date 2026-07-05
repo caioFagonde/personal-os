@@ -13,13 +13,60 @@
     </NexusPageHero>
 
     <NexusErrorBanner v-if="loadError" :error="loadError" @dismiss="loadError = ''" />
+    <q-banner v-if="loadError" dense rounded class="bg-grey-9 text-grey-3">
+      Provider status could not be loaded — actions below stay disabled until the connector service responds. Use Refresh status to retry.
+    </q-banner>
+
+    <!-- Server-side setup instructions (secrets live in .env on the server;
+         provider credentials are never stored in browser localStorage) -->
+    <q-expansion-item icon="mdi-cog-outline" label="Setup instructions" class="glass-card" header-class="text-subtitle1">
+      <q-card-section class="q-gutter-sm">
+        <div>
+          <strong>Google:</strong> set <code>GOOGLE_CLIENT_ID</code> and <code>GOOGLE_CLIENT_SECRET</code> in <code>.env</code>,
+          then <code>docker compose restart connector-service</code>. The redirect URI must match
+          <code>CONNECTOR_PUBLIC_BASE_URL/api/proxy/connectors/api/connectors/google/callback</code>.
+        </div>
+        <div>
+          <strong>Microsoft:</strong> set <code>MICROSOFT_CLIENT_ID</code>, <code>MICROSOFT_CLIENT_SECRET</code>, and optionally
+          <code>MICROSOFT_TENANT</code> in <code>.env</code>, then restart connector-service.
+        </div>
+        <div>
+          <strong>ntfy:</strong> notifications publish to topic <code>{{ ntfyTopicHint }}</code>. To receive them on your phone,
+          install the ntfy mobile app and subscribe to that topic on your server URL. Test below sends a dry-run first.
+        </div>
+        <div>
+          <strong>Twilio (optional):</strong> set <code>TWILIO_ACCOUNT_SID</code>, <code>TWILIO_AUTH_TOKEN</code>, and a WhatsApp
+          sender. All sends default to dry-run until <code>SEND_CONNECTOR_TESTS=true</code>.
+        </div>
+        <div>
+          <strong>Obsidian:</strong> set <code>OBSIDIAN_VAULT_PATH</code> to your vault's absolute path, then restart connector-service.
+          Exports are create-only and always contained inside the vault.
+        </div>
+        <div class="text-caption text-muted">
+          All provider credentials are read from the server environment and are never stored in browser localStorage.
+        </div>
+      </q-card-section>
+    </q-expansion-item>
+
+    <!-- Tailscale detail (populated by Check status) -->
+    <q-card v-if="tailscaleDetail" class="glass-card">
+      <q-card-section class="row items-center q-gutter-md">
+        <q-icon name="mdi-lan" size="24px" />
+        <div>
+          <div class="text-subtitle2">Tailscale</div>
+          <div v-if="tailscaleDetail.hostname">Hostname: <strong>{{ tailscaleDetail.hostname }}</strong></div>
+          <div v-if="tailscaleDetail.ip">IP: <strong class="text-accent">{{ tailscaleDetail.ip }}</strong></div>
+          <div v-if="tailscaleDetail.status">Status: {{ tailscaleDetail.status }}</div>
+        </div>
+      </q-card-section>
+    </q-card>
 
     <!-- Summary metrics -->
-    <div class="row q-gutter-sm">
+    <!-- <div class="row q-gutter-sm">
       <MetricCard label="Connected" :value="connectedCount" />
       <MetricCard label="Needs config" :value="needsConfigCount" />
       <MetricCard label="Total" :value="allProviders.length" />
-    </div>
+    </div> -->
 
     <!-- Filter bar -->
     <div class="row items-center q-gutter-sm q-mb-sm" style="flex-wrap:wrap">
@@ -66,34 +113,68 @@
             :manifest="item.manifest"
             :status="item.status"
           >
-            <template #actions="{ status: st, manifest: mf }">
-              <!-- OAuth providers: Connect / Device code -->
-              <template v-if="mf.id === 'google' || mf.id === 'microsoft'">
+            <template #actions>
+              <!-- OAuth providers: Connect / Device code (disabled until server env is configured) -->
+              <template v-if="item.id === 'google' || item.id === 'microsoft'">
                 <q-btn
                   color="primary"
                   unelevated
                   size="sm"
-                  :disable="!st.configured"
-                  :label="st.configured ? 'Connect' : 'Configure .env first'"
-                  @click="authorize(mf.id)"
+                  :disable="!item.configured"
+                  :label="item.configured ? 'Connect' : 'Configure .env first'"
+                  @click="authorize(item.id)"
                 />
                 <q-btn
-                  v-if="st.configured"
+                  v-if="item.configured"
                   outline
                   color="primary"
                   size="sm"
                   label="Device code"
-                  @click="startDeviceFlow(mf.id)"
+                  @click="startDeviceFlow(item.id)"
                 />
               </template>
               <!-- Twilio: dry-run test -->
-              <q-btn v-if="mf.id === 'twilio'" outline color="primary" size="sm" label="Dry-run test" @click="testTwilio" />
+              <q-btn v-if="item.id === 'twilio'" outline color="primary" size="sm" label="Dry-run test" @click="testTwilio" />
               <!-- ntfy: dry-run test -->
-              <q-btn v-if="mf.id === 'ntfy'" outline color="primary" size="sm" label="Dry-run test" @click="testNtfy" />
+              <q-btn v-if="item.id === 'ntfy'" outline color="primary" size="sm" label="Dry-run test" @click="testNtfy" />
               <!-- Tailscale: check status -->
-              <q-btn v-if="mf.id === 'tailscale'" outline color="primary" size="sm" label="Check status" @click="checkTailscale" />
+              <q-btn v-if="item.id === 'tailscale'" outline color="primary" size="sm" label="Check status" @click="checkTailscale" />
+              <!-- Local knowledge connectors: dry-run only from the UI -->
+              <q-btn
+                v-if="item.id === 'obsidian'"
+                outline
+                color="primary"
+                size="sm"
+                :disable="!item.configured"
+                :label="item.configured ? 'Dry-run export' : 'Set OBSIDIAN_VAULT_PATH'"
+                @click="runDryRun('obsidian')"
+              />
+              <q-btn
+                v-if="item.id === 'notion'"
+                outline
+                color="primary"
+                size="sm"
+                :disable="!item.configured"
+                label="Dry-run page"
+                @click="runDryRun('notion')"
+              />
+              <q-btn
+                v-if="item.id === 'trello'"
+                outline
+                color="primary"
+                size="sm"
+                :disable="!item.configured"
+                label="Dry-run card"
+                @click="runDryRun('trello')"
+              />
               <!-- Cloud providers: dry-run plan badge -->
-              <q-badge v-if="mf.cloudSafetyNote" color="warning" label="Dry-run plan only" />
+              <q-badge v-if="item.manifest.cloudSafetyNote" color="warning" label="Dry-run plan only" />
+              <!-- Server-declared config requirements -->
+              <q-badge
+                v-if="item.config_metadata && !item.configured"
+                color="grey-7"
+                :label="`needs: ${item.config_metadata}`"
+              />
             </template>
           </ProviderCard>
         </div>
@@ -166,18 +247,35 @@ import {
   deriveProviderState,
 } from '../providers/manifests'
 
-type BackendConnector = { id: string; configured: boolean; status: string; message: string }
-interface ProviderEntry { manifest: ProviderManifest; status: ProviderLiveStatus }
+type BackendConnector = {
+  id: string
+  configured: boolean
+  status: string
+  message: string
+  required_env?: string[]
+  required_any_of?: string[][]
+}
+interface ProviderEntry {
+  id: string
+  configured: boolean
+  // Server-declared env keys still missing for this provider (config_metadata).
+  config_metadata: string
+  manifest: ProviderManifest
+  status: ProviderLiveStatus
+}
+interface TailscaleDetail { hostname?: string; ip?: string; status?: string }
 
 const backendConnectors = ref<BackendConnector[]>([])
 const result = ref<string | null>(null)
 const deviceFlow = ref<any | null>(null)
+const tailscaleDetail = ref<TailscaleDetail | null>(null)
 const loadError = ref('')
 const refreshing = ref(false)
 const showDeviceHelp = ref(false)
 const showRaw = ref(false)
 const searchQuery = ref('')
 const filterState = ref('all')
+const ntfyTopicHint = 'personal-os (NTFY_TOPIC in .env)'
 
 const stateFilterOptions = [
   { label: 'All', value: 'all' },
@@ -195,10 +293,20 @@ const resultObj = computed(() => {
 const allProviders = computed<ProviderEntry[]>(() => {
   const backendMap = new Map<string, BackendConnector>()
   for (const c of backendConnectors.value) backendMap.set(c.id, c)
-  return PROVIDER_MANIFESTS.map(manifest => ({
-    manifest,
-    status: deriveProviderState(manifest, backendMap.get(manifest.id)),
-  }))
+  return PROVIDER_MANIFESTS.map(manifest => {
+    const backend = backendMap.get(manifest.id)
+    const missing = [
+      ...(backend?.required_env ?? []),
+      ...((backend?.required_any_of ?? []).map(group => group.join(' | '))),
+    ]
+    return {
+      id: manifest.id,
+      configured: backend?.configured ?? false,
+      config_metadata: missing.join(', '),
+      manifest,
+      status: deriveProviderState(manifest, backend),
+    }
+  })
 })
 
 const filteredProviders = computed<ProviderEntry[]>(() => {
@@ -317,6 +425,33 @@ async function checkTailscale() {
   result.value = null
   try {
     const data = await jsonFetch<any>(`${connectorsUrl}/api/connectors/tailscale/status`)
+    tailscaleDetail.value = { hostname: data.hostname, ip: data.ip, status: data.status }
+    result.value = JSON.stringify(data)
+  } catch (error) { result.value = describeConnectorError(error) }
+}
+
+// Local knowledge connectors expose dry-run endpoints only from the UI.
+// The server never performs external writes from these calls (execute: false).
+async function runDryRun(provider: 'obsidian' | 'notion' | 'trello') {
+  result.value = null
+  try {
+    let data: any
+    if (provider === 'obsidian') {
+      data = await jsonFetch<any>(`${connectorsUrl}/api/connectors/obsidian/export`, {
+        method: 'POST',
+        body: JSON.stringify({ relative_path: 'Personal OS/dry-run-check.md', content: '# Dry run\n', execute: false }),
+      })
+    } else if (provider === 'notion') {
+      data = await jsonFetch<any>(`${connectorsUrl}/api/connectors/notion/pages/dry-run`, {
+        method: 'POST',
+        body: JSON.stringify({ title: 'Personal OS dry run', execute: false }),
+      })
+    } else {
+      data = await jsonFetch<any>(`${connectorsUrl}/api/connectors/trello/cards/dry-run`, {
+        method: 'POST',
+        body: JSON.stringify({ title: 'Personal OS dry run', execute: false }),
+      })
+    }
     result.value = JSON.stringify(data)
   } catch (error) { result.value = describeConnectorError(error) }
 }

@@ -1,0 +1,40 @@
+<!-- Phase E2: Android share-target + app shortcuts.
+     Merge these into android/app/src/main/AndroidManifest.xml (inside the main
+     <activity android:name=".MainActivity">) and reference the shortcuts file
+     after `npx cap add android`. The web layer (src/share-target.ts) turns the
+     received intent into a /capture deep link and saves queue-first.
+     Nothing here builds in the sandbox; it is applied on a real Android checkout. -->
+
+<!-- 1. Share-sheet intent filters: text, URLs, and images route into the app. -->
+<intent-filter>
+    <action android:name="android.intent.action.SEND" />
+    <category android:name="android.intent.category.DEFAULT" />
+    <data android:mimeType="text/plain" />
+    <data android:mimeType="text/*" />
+    <data android:mimeType="image/*" />
+</intent-filter>
+
+<!-- 2. App shortcuts (long-press launcher icon): Capture · New task · Today. -->
+<!-- res/xml/shortcuts.xml:
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="capture"
+        android:enabled="true"
+        android:shortcutShortLabel="@string/shortcut_capture">
+        <intent android:action="android.intent.action.VIEW"
+                android:data="io.personalos.mobile://capture" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="new-task"
+        android:shortcutShortLabel="@string/shortcut_new_task">
+        <intent android:action="android.intent.action.VIEW"
+                android:data="io.personalos.mobile://tasks?new=1" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="today"
+        android:shortcutShortLabel="@string/shortcut_today">
+        <intent android:action="android.intent.action.VIEW"
+                android:data="io.personalos.mobile://today" />
+    </shortcut>
+</shortcuts>
+-->

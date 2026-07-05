@@ -1,3 +1,4 @@
+import BigPictureHome from '../pages/BigPictureHome.vue'
 import CommandCenterPage from '../pages/CommandCenterPage.vue'
 import StudyPage from '../pages/StudyPage.vue'
 import ZettelkastenPage from '../pages/ZettelkastenPage.vue'
@@ -10,6 +11,10 @@ import AutomationPage from '../pages/AutomationPage.vue'
 import DigitalTwinPage from '../pages/DigitalTwinPage.vue'
 import CapturePage from '../pages/CapturePage.vue'
 import TasksPage from '../pages/TasksPage.vue'
+import ProjectsPage from '../pages/ProjectsPage.vue'
+import DailyPage from '../pages/DailyPage.vue'
+import ContinuityPage from '../pages/ContinuityPage.vue'
+import OpsPage from '../pages/OpsPage.vue'
 import StudyCompanionPage from '../pages/StudyCompanionPage.vue'
 import ConnectorsPage from '../pages/ConnectorsPage.vue'
 import OnboardingPage from '../pages/OnboardingPage.vue'
@@ -26,9 +31,15 @@ import LiveStackPage from '../pages/LiveStackPage.vue'
 import InitialVersionReadinessPage from '../pages/InitialVersionReadinessPage.vue'
 import CodingAgentPage from '../pages/CodingAgentPage.vue'
 import SettingsPage from '../pages/SettingsPage.vue'
+import IntelligencePage from '../pages/IntelligencePage.vue'
 
 export default [
+  // Command Center is the canonical daily home (phase-14 contract).
+  // Big Picture is the optional ambient/overview mode at /ambient.
   { path: '/', component: CommandCenterPage },
+  { path: '/command-center', component: CommandCenterPage },
+  { path: '/ambient', component: BigPictureHome },
+  { path: '/intelligence', component: IntelligencePage },
   { path: '/study', component: StudyPage },
   { path: '/zettelkasten', component: ZettelkastenPage },
   { path: '/geospatial', component: GeospatialPage },
@@ -39,6 +50,18 @@ export default [
   { path: '/digital-twin', component: DigitalTwinPage },
   { path: '/capture', component: CapturePage },
   { path: '/tasks', component: TasksPage },
+  { path: '/projects', component: ProjectsPage },
+  // Phase C IA: /today is the canonical Today/Focus surface (UX spec #3).
+  { path: '/today', component: DailyPage },
+  { path: '/daily', redirect: '/today' },
+  // Phase C IA: merged continuity surface (#12) + ops deck; the five underlying
+  // pages keep their direct routes (contract-pinned) and embed here as tabs.
+  { path: '/continuity', component: ContinuityPage },
+  { path: '/ops', component: OpsPage },
+  // Canonical-name aliases per UX spec (#8 agents, #10 twin, #6 notes).
+  { path: '/agents', redirect: '/coding-agent' },
+  { path: '/twin', redirect: '/digital-twin' },
+  { path: '/notes', redirect: '/zettelkasten' },
   { path: '/study-companion', component: StudyCompanionPage },
   { path: '/sync', component: SyncPage },
   { path: '/sync-health', component: SyncHealthPage },
@@ -56,5 +79,5 @@ export default [
   { path: '/live-stack', component: LiveStackPage },
   { path: '/initial-readiness', component: InitialVersionReadinessPage },
   { path: '/settings', component: SettingsPage },
-  { path: '/modules/:id', component: ModulePage, props: true }
+  { path: '/modules/:id', component: ModulePage, props: true },
 ]

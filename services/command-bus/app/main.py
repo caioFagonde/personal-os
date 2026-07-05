@@ -17,7 +17,10 @@ from .signing import verify_signature as verify_command_signature
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://personal_os:personal_os@localhost:5432/personal_os")
 COMMAND_SIGNING_SECRET = os.environ.get("COMMAND_SIGNING_SECRET", "local-dev-only-change-me")
 app = FastAPI(title="Personal OS Command Bus", version="0.2.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+# CORS origins are configurable via env (comma-separated). "*" is the local-dev
+# default; restrict to the gateway origin(s) on any non-tailnet deployment.
+CORS_ALLOW_ORIGINS = [o.strip() for o in os.environ.get("CORS_ALLOW_ORIGINS", "*").split(",") if o.strip()] or ["*"]
+app.add_middleware(CORSMiddleware, allow_origins=CORS_ALLOW_ORIGINS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 
 @app.middleware("http")

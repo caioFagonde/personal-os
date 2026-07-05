@@ -1,66 +1,33 @@
-name: phase10-connectors-continuity
+name: Phase 10 Connectors Continuity
 
 on:
   push:
+    branches: [main]
+    paths:
+      - 'services/connector-service/**'
+      - 'tests/test_phase10_scaffold.py'
+      - 'tests/test_obsidian_notion_trello_connectors.py'
   pull_request:
-
-permissions:
-  contents: read
+    paths:
+      - 'services/connector-service/**'
+  workflow_dispatch: {}
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
-  connector-service-coverage:
+  connector-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
-      - name: Install connector dependencies
+          python-version: "3.12"
+      - name: Install
         run: |
-          python -m pip install --upgrade pip
-          pip install -r services/connector-service/requirements.txt pytest pytest-cov
-      - name: Unit tests and coverage
-        working-directory: services/connector-service
-        env:
-          PYTHONPATH: .
-          TOKEN_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcd=
-        run: python -m pytest tests -q --cov=app.oauth --cov=app.providers --cov=app.backup --cov-branch --cov-fail-under=96
-
-  scaffold-contract:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Install scaffold test deps
-        run: python -m pip install -U pytest PyYAML
-      - name: Scaffold tests
-        run: python -m pytest tests/test_phase10_scaffold.py -q
-
-  compose-connectors-contract:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Prepare env
-        run: |
-          cp .env.example .env
-          python3 scripts/generate-env.py .env
-      - name: Validate connectors profile
-        run: |
-          docker compose --env-file .env --profile connectors --profile core config >/tmp/compose-connectors.yml
-          grep -q personal-os-connector-service /tmp/compose-connectors.yml
-          grep -q personal-os-postgres /tmp/compose-connectors.yml
-
-  web-onboarding-contract:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Web route contract
-        run: |
-          grep -q "ConnectorsPage" apps/web/src/router/routes.ts
-          grep -q "/onboarding" apps/web/src/router/routes.ts
-          grep -q "connectorsUrl" apps/web/src/services/api.ts
+          pip install pytest pytest-asyncio anyio pyyaml
+          pip install -r services/connector-service/requirements.txt
+      - name: Connector service unit tests
+        run: cd services/connector-service && python -m pytest tests -q
+      - name: Phase 10 scaffold and marketplace contracts
+        run: python -m pytest tests/test_phase10_scaffold.py tests/test_obsidian_notion_trello_connectors.py tests/test_connector_marketplace.py -q

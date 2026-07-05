@@ -12,6 +12,7 @@ export const studyCompanionUrl = import.meta.env.VITE_STUDY_COMPANION_URL || `${
 export const connectorsUrl = import.meta.env.VITE_CONNECTORS_URL || `${apiUrl}/api/proxy/connectors`
 export const modelRuntimeUrl = import.meta.env.VITE_MODEL_RUNTIME_URL || `${apiUrl}/api/proxy/model-runtime`
 export const codingAgentUrl = import.meta.env.VITE_CODING_AGENT_URL || `${apiUrl}/api/proxy/coding-agent`
+export const intelligenceUrl = import.meta.env.VITE_INTELLIGENCE_URL || `${apiUrl}/api/proxy/intelligence`
 
 export { deviceKey }
 

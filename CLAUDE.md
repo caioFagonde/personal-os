@@ -307,3 +307,24 @@ The initial version is complete when:
 * backup/restore path works
 * Claude Code can safely work through the coding-agent layer
 * tests and CI catch regressions
+
+# CLAUDE.md — Personal OS / Nexus Prime
+
+Before doing anything, read NEW_AGENT_HANDOFF.md — it is the source of truth
+for current state, doctrine, and next phase. Specs live in docs/.
+
+Hard rules (non-negotiable):
+- Never read, print, edit, or commit .env, .env.*, secrets/, .private/,
+  data/, backups/, logs/, tokens, or keys.
+- No sudo, no docker volume removal, no force-push, no broad rm -rf.
+- No mocked implementations. Placeholders must be labeled (dry_run,
+  demo:true, placeholder) and tested as such.
+- Update contract tests in the same commit as any behavior change they
+  guard. Never delete a contract test to make it pass.
+- Every phase updates NEW_AGENT_HANDOFF.md and the docs/ living documents.
+
+Verification before claiming done:
+- python3 -m pytest tests/ --ignore=tests/live -q   (must be 100%)
+- per-service: cd services/<name> && python3 -m pytest tests -q
+- bash scripts/check-secrets.sh
+- pnpm --dir apps/web test && pnpm --dir apps/web exec vue-tsc --noEmit

@@ -4,7 +4,7 @@ import hashlib
 import json
 import os
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
 
@@ -13,12 +13,16 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from . import graph
 from .security import optional_principal, require_scope
 from .ar_math import project_anchor_from_orientation, yaw_billboard_angle
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://personal_os:personal_os@localhost:5432/personal_os")
 app = FastAPI(title="Personal OS Module Service", version="0.1.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+# CORS origins are configurable via env (comma-separated). "*" is the local-dev
+# default; restrict to the gateway origin(s) on any non-tailnet deployment.
+CORS_ALLOW_ORIGINS = [o.strip() for o in os.environ.get("CORS_ALLOW_ORIGINS", "*").split(",") if o.strip()] or ["*"]
+app.add_middleware(CORSMiddleware, allow_origins=CORS_ALLOW_ORIGINS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 
 @app.middleware("http")
@@ -166,6 +170,39 @@ class ARObservationIn(BaseModel):
     distance_m: float | None = None
     quality: float = Field(default=0.5, ge=0, le=1)
     payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class ProjectIn(BaseModel):
+    device_key: str = "module-service"
+    name: str = Field(min_length=1, max_length=200)
+    pitch: str = ""
+    north_star: str = ""
+    status: str = Field(default="active", pattern="^(active|paused|done|archived)$")
+    vault_path: str | None = None
+    meta: dict[str, Any] = Field(default_factory=dict)
+
+
+class ProjectPatch(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    pitch: str | None = None
+    north_star: str | None = None
+    status: str | None = Field(default=None, pattern="^(active|paused|done|archived)$")
+    vault_path: str | None = None
+
+
+class DayOpenIn(BaseModel):
+    device_key: str = "module-service"
+    day: date | None = None
+    intention: str = ""
+
+
+class DayCloseIn(BaseModel):
+    device_key: str = "module-service"
+    day: date | None = None
+    review: str = ""
+    highlights: list[str] = Field(default_factory=list)
+    energy: int | None = Field(default=None, ge=1, le=5)
+    mood: int | None = Field(default=None, ge=1, le=5)
 
 
 @app.on_event("startup")
@@ -386,6 +423,19 @@ async def create_note(payload: NoteIn) -> dict[str, Any]:
         )
         await refresh_links(conn, UUID(row["id"]), payload.body)
         await record_change(conn, device_id, "zettelkasten", "note", entity_id, "create", dict(row), strategy="crdt_text")
+        # Graph registry dual-write (best-effort).
+        note_obj = await graph.register_object(
+            conn, kind="note", domain_table="notes", domain_id=row["id"],
+            title=row["title"], slug=row["slug"], status=row["note_type"], tags=list(row["tags"] or []),
+        )
+        await graph.upsert_chunks(conn, note_obj, graph.chunk_text(f"{row['title']}\n\n{payload.body}"))
+        wiki_targets = await conn.fetch(
+            "SELECT target_note_id FROM zettel_links WHERE source_note_id=$1 AND target_note_id IS NOT NULL",
+            UUID(row["id"]),
+        )
+        for target in wiki_targets:
+            target_obj = await graph.object_id_for(conn, "notes", target["target_note_id"])
+            await graph.link(conn, note_obj, target_obj, "references")
     return dict(row)
 
 
@@ -414,6 +464,190 @@ async def export_obsidian(note_id: UUID) -> dict[str, str]:
     fm = {"id": note["id"], "title": note["title"], "tags": note["tags"], **(note.get("frontmatter") or {})}
     frontmatter = "---\n" + "\n".join(f"{k}: {json.dumps(v) if isinstance(v, (list, dict)) else v}" for k, v in fm.items()) + "\n---\n\n"
     return {"filename": f"{note['slug']}.md", "markdown": frontmatter + note["body"]}
+
+
+# Projects (Phase B vertical) --------------------------------------------------
+PROJECT_COLUMNS = "id::text, name, slug, status, pitch, north_star, vault_path, meta, created_at, updated_at"
+
+
+@app.get("/api/projects")
+async def list_projects(status: str | None = None) -> list[dict[str, Any]]:
+    p = await pool()
+    async with p.acquire() as conn:
+        rows = await conn.fetch(
+            f"""
+            SELECT {PROJECT_COLUMNS} FROM projects
+            WHERE ($1::text IS NULL OR status=$1)
+            ORDER BY updated_at DESC LIMIT 200
+            """,
+            status,
+        )
+    return [dict(r) for r in rows]
+
+
+@app.post("/api/projects")
+async def create_project(payload: ProjectIn) -> dict[str, Any]:
+    p = await pool()
+    async with p.acquire() as conn:
+        base = graph.slugify(payload.name, fallback="project")
+        slug, i = base, 2
+        while await conn.fetchval("SELECT 1 FROM projects WHERE slug=$1", slug):
+            slug = f"{base}-{i}"
+            i += 1
+        row = await conn.fetchrow(
+            f"""
+            INSERT INTO projects(name, slug, status, pitch, north_star, vault_path, meta)
+            VALUES($1,$2,$3,$4,$5,$6,$7::jsonb)
+            RETURNING {PROJECT_COLUMNS}
+            """,
+            payload.name,
+            slug,
+            payload.status,
+            payload.pitch,
+            payload.north_star,
+            payload.vault_path,
+            json.dumps(payload.meta),
+        )
+        project_obj = await graph.register_object(
+            conn, kind="project", domain_table="projects", domain_id=row["id"],
+            title=row["name"], slug=row["slug"], status=row["status"],
+        )
+        await graph.upsert_chunks(conn, project_obj, [f"{row['name']}\n\n{row['pitch']}\n\n{row['north_star']}".strip()])
+    return dict(row)
+
+
+@app.get("/api/projects/{project_id}")
+async def get_project(project_id: UUID) -> dict[str, Any]:
+    p = await pool()
+    async with p.acquire() as conn:
+        row = await conn.fetchrow(f"SELECT {PROJECT_COLUMNS} FROM projects WHERE id=$1", project_id)
+        if not row:
+            raise HTTPException(status_code=404, detail="project not found")
+        object_id = await graph.object_id_for(conn, "projects", project_id)
+    out = dict(row)
+    out["object_id"] = object_id
+    return out
+
+
+@app.patch("/api/projects/{project_id}")
+async def patch_project(project_id: UUID, patch: ProjectPatch) -> dict[str, Any]:
+    p = await pool()
+    async with p.acquire() as conn:
+        current = await conn.fetchrow("SELECT * FROM projects WHERE id=$1", project_id)
+        if not current:
+            raise HTTPException(status_code=404, detail="project not found")
+        row = await conn.fetchrow(
+            f"""
+            UPDATE projects SET name=$2, pitch=$3, north_star=$4, status=$5, vault_path=$6, updated_at=now()
+            WHERE id=$1
+            RETURNING {PROJECT_COLUMNS}
+            """,
+            project_id,
+            patch.name if patch.name is not None else current["name"],
+            patch.pitch if patch.pitch is not None else current["pitch"],
+            patch.north_star if patch.north_star is not None else current["north_star"],
+            patch.status if patch.status is not None else current["status"],
+            patch.vault_path if patch.vault_path is not None else current["vault_path"],
+        )
+        project_obj = await graph.register_object(
+            conn, kind="project", domain_table="projects", domain_id=project_id,
+            title=row["name"], slug=row["slug"], status=row["status"],
+        )
+        await graph.upsert_chunks(conn, project_obj, [f"{row['name']}\n\n{row['pitch']}\n\n{row['north_star']}".strip()])
+    return dict(row)
+
+
+# Daily state (Phase B vertical) ------------------------------------------------
+DAILY_COLUMNS = "id::text, day, intention, highlights, energy, mood, review, closed, meta"
+
+
+@app.get("/api/daily-state/today")
+async def daily_today() -> dict[str, Any]:
+    p = await pool()
+    async with p.acquire() as conn:
+        row = await conn.fetchrow(f"SELECT {DAILY_COLUMNS} FROM daily_states WHERE day=current_date")
+    if not row:
+        return {"day": date.today().isoformat(), "opened": False, "closed": False}
+    out = dict(row)
+    out["day"] = row["day"].isoformat()
+    out["opened"] = True
+    return out
+
+
+@app.get("/api/daily-state")
+async def daily_history(limit: int = Query(default=14, ge=1, le=90)) -> list[dict[str, Any]]:
+    p = await pool()
+    async with p.acquire() as conn:
+        rows = await conn.fetch(f"SELECT {DAILY_COLUMNS} FROM daily_states ORDER BY day DESC LIMIT $1", limit)
+    out = []
+    for row in rows:
+        item = dict(row)
+        item["day"] = row["day"].isoformat()
+        out.append(item)
+    return out
+
+
+@app.post("/api/daily-state/open")
+async def daily_open(payload: DayOpenIn) -> dict[str, Any]:
+    day = payload.day or date.today()
+    p = await pool()
+    async with p.acquire() as conn:
+        row = await conn.fetchrow(
+            f"""
+            INSERT INTO daily_states(day, intention)
+            VALUES($1,$2)
+            ON CONFLICT(day) DO UPDATE SET
+              intention=CASE WHEN EXCLUDED.intention <> '' THEN EXCLUDED.intention ELSE daily_states.intention END
+            RETURNING {DAILY_COLUMNS}
+            """,
+            day,
+            payload.intention,
+        )
+        day_obj = await graph.register_object(
+            conn, kind="daily_state", domain_table="daily_states", domain_id=row["id"],
+            title=f"Daily {day.isoformat()}", slug=f"daily-{day.isoformat()}",
+            status="closed" if row["closed"] else "open",
+        )
+        await graph.upsert_chunks(conn, day_obj, [f"Daily {day.isoformat()}\n\n{row['intention']}".strip()])
+    out = dict(row)
+    out["day"] = row["day"].isoformat()
+    return out
+
+
+@app.post("/api/daily-state/close")
+async def daily_close(payload: DayCloseIn) -> dict[str, Any]:
+    day = payload.day or date.today()
+    p = await pool()
+    async with p.acquire() as conn:
+        row = await conn.fetchrow(
+            f"""
+            INSERT INTO daily_states(day, review, highlights, energy, mood, closed)
+            VALUES($1,$2,$3::jsonb,$4,$5,true)
+            ON CONFLICT(day) DO UPDATE SET
+              review=EXCLUDED.review,
+              highlights=EXCLUDED.highlights,
+              energy=COALESCE(EXCLUDED.energy, daily_states.energy),
+              mood=COALESCE(EXCLUDED.mood, daily_states.mood),
+              closed=true
+            RETURNING {DAILY_COLUMNS}
+            """,
+            day,
+            payload.review,
+            json.dumps(payload.highlights),
+            payload.energy,
+            payload.mood,
+        )
+        day_obj = await graph.register_object(
+            conn, kind="daily_state", domain_table="daily_states", domain_id=row["id"],
+            title=f"Daily {day.isoformat()}", slug=f"daily-{day.isoformat()}", status="closed",
+        )
+        await graph.upsert_chunks(
+            conn, day_obj,
+            [f"Daily {day.isoformat()}\n\n{row['intention']}\n\n{payload.review}\n\n" + "\n".join(payload.highlights)],
+        )
+    out = dict(row)
+    out["day"] = row["day"].isoformat()
+    return out
 
 
 # Geospatial ------------------------------------------------------------------

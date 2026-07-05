@@ -1,446 +1,54 @@
 {
-  "version": 1,
-  "objective": "Personal OS v1 productization through bounded multi-agent worktrees",
-  "budget": {
-    "max_parallel_workers": 4,
-    "tranche_minutes": 45,
-    "review_minutes": 15
-  },
-  "worktree_root": ".agent-worktrees",
-  "run_root": ".agents/runs",
-  "report_root": ".agents/reports",
-  "global_constraints": {
-    "no_secret_paths": [
-      ".env",
-      ".env.*",
-      "secrets/**",
-      ".private/**",
-      "data/**",
-      "backups/**",
-      "logs/**",
-      "node_modules/**",
-      ".git/**",
-      "**/*token*",
-      "**/*credentials*",
-      "**/client_secret*.json",
-      "**/*.pem",
-      "**/*.key",
-      "**/*.p12",
-      "**/*.pfx"
-    ],
-    "no_destructive_commands": true,
-    "require_tests": true,
-    "no_auto_commit": true,
-    "no_auto_push": true
-  },
-  "global_acceptance": [
-    "python3 -m pytest tests -q passes",
-    "./scripts/check-secrets.sh passes",
-    "bash -n scripts/*.sh passes",
-    "docker compose --env-file .env --profile full config passes when Docker is available",
-    "pnpm --dir apps/web build passes when Node deps are available",
-    "bootstrap completes or produces actionable diagnostics",
-    "core UI routes render without obvious visual corruption"
+  "version": 2,
+  "updated": "2026-07-02",
+  "doctrine": [
+    "Never read, print, edit, or commit .env, .env.*, secrets/, .private/, data/, backups/, logs/, tokens, or keys.",
+    "No sudo, no docker volume removal, no force-push, no broad rm -rf.",
+    "Work in task-specific worktrees; only edit allowed_paths.",
+    "Every task produces .agents/reports/<task-id>/report.md with tests and acceptance status."
   ],
-  "workers": {
-    "planner": {
-      "model": "opus",
-      "mode": "read_only",
-      "role_file": ".agents/roles/planner.md"
-    },
-    "scout": {
-      "model": "haiku",
-      "mode": "read_only",
-      "role_file": ".agents/roles/scout.md"
-    },
-    "ui_executor": {
-      "model": "sonnet",
-      "mode": "edit",
-      "role_file": ".agents/roles/ui-executor.md"
-    },
-    "backend_executor": {
-      "model": "sonnet",
-      "mode": "edit",
-      "role_file": ".agents/roles/backend-executor.md"
-    },
-    "devops_executor": {
-      "model": "codex",
-      "mode": "edit",
-      "role_file": ".agents/roles/devops-executor.md"
-    },
-    "verifier": {
-      "model": "codex",
-      "mode": "test_only",
-      "role_file": ".agents/roles/verifier.md"
-    },
-    "integrator": {
-      "model": "opus_or_gpt",
-      "mode": "review_only",
-      "role_file": ".agents/roles/integrator.md"
-    }
-  },
   "tasks": [
     {
       "id": "ui-foundation",
-      "priority": "p0",
-      "executor": "ui_executor",
-      "title": "Fix global Nexus UI foundation: dark theme, icons, overflow, shared components",
+      "priority": "P0",
+      "title": "Keep the web UI foundation coherent: Command Center default route, contract tests in sync with pages",
       "allowed_paths": [
-        "apps/web/src/css/**",
-        "apps/web/src/design/**",
-        "apps/web/src/components/**",
-        "apps/web/src/pages/**",
-        "apps/web/src/router/**",
-        "apps/web/quasar.config.ts",
-        "apps/web/index.html",
-        "tests/**",
-        "docs/ux-command-center.md"
+        "apps/web/src/pages/",
+        "apps/web/src/components/",
+        "apps/web/src/router/",
+        "apps/web/src/css/",
+        "apps/web/src/design/",
+        "tests/test_phase14_scaffold.py",
+        "tests/test_phase15_ux_polish.py"
       ],
-      "locked_paths": [
-        "apps/web/src/css/app.scss",
-        "apps/web/src/design/tokens.ts",
-        "apps/web/src/App.vue"
-      ],
-      "depends_on": [],
-      "prompt_file": ".agents/tasks/ui-foundation.md",
-      "acceptance": [
-        "No unreadable white cards/forms in dark theme",
-        "No broken icon text artifacts such as arrow_drop_down",
-        "No global horizontal overflow on core pages",
-        "Primary buttons are visible and aligned",
-        "Core pages use consistent Nexus components"
-      ],
-      "tests": [
-        "python3 -m pytest tests -q",
-        "./scripts/check-secrets.sh",
-        "pnpm --dir apps/web build"
-      ]
+      "locked_paths": ["apps/web/src/services/auth.ts"],
+      "acceptance": "pytest tests/test_phase14_scaffold.py tests/test_phase15_ux_polish.py passes; pnpm --dir apps/web test passes"
     },
     {
       "id": "capture-e2e",
-      "priority": "p0",
-      "executor": "backend_executor",
-      "title": "Fix capture, task creation, and secretary delegation end-to-end",
+      "priority": "P0",
+      "title": "Capture-to-task pipeline stays green end to end, delegation fails closed without SECRETARY_* env",
       "allowed_paths": [
-        "services/capture-service/**",
-        "services/api-gateway/**",
-        "apps/web/src/pages/CapturePage.vue",
-        "apps/web/src/pages/TasksPage.vue",
-        "apps/web/src/services/api.ts",
-        "infra/postgres/migrations/**",
-        "tests/**",
-        "scripts/certify/**",
-        "docs/v1-feature-matrix.md"
+        "services/capture-service/",
+        "tests/test_capture_e2e.py",
+        "tests/test_v1_capture_hardening.py"
       ],
-      "locked_paths": [
-        "services/capture-service/app/main.py",
-        "apps/web/src/pages/CapturePage.vue"
-      ],
-      "depends_on": [],
-      "prompt_file": ".agents/tasks/capture-e2e.md",
-      "acceptance": [
-        "Capture creates notes/tasks through gateway proxy",
-        "Secretary missing channels returns structured 409 with setup action",
-        "UI catches and renders API errors",
-        "Non-destructive capture smoke script exists"
-      ],
-      "tests": [
-        "python3 -m pytest tests -q",
-        "./scripts/check-secrets.sh",
-        "./scripts/certify/v1-local-smoke.sh"
-      ]
+      "locked_paths": [],
+      "acceptance": "pytest tests/test_capture_e2e.py tests/test_v1_capture_hardening.py and services/capture-service/tests pass; scripts/check-secrets.sh clean"
     },
     {
       "id": "config-validation",
-      "priority": "p0",
-      "executor": "devops_executor",
-      "title": "Add safe env/runtime config validation and settings setup UX contracts",
+      "priority": "P0",
+      "title": "Environment template, generator, and validator stay consistent with docker-compose and services",
       "allowed_paths": [
-        "scripts/validate-env.py",
-        "scripts/bootstrap.sh",
-        "scripts/doctor-full.sh",
-        "apps/web/src/pages/SettingsPage.vue",
-        "apps/web/src/components/NexusConfigForm.vue",
-        "services/api-gateway/**",
         ".env.example",
-        "tests/**",
-        "docs/install.md",
-        "docs/troubleshooting.md"
-      ],
-      "locked_paths": [
-        "scripts/bootstrap.sh",
-        ".env.example"
-      ],
-      "depends_on": [],
-      "prompt_file": ".agents/tasks/config-validation.md",
-      "acceptance": [
-        "Malformed config is caught without printing secret values",
-        "Settings page validates masked fields",
-        "Missing optional config routes to setup UI not raw 500",
-        "Bootstrap prints actionable config diagnostics"
-      ],
-      "tests": [
-        "python3 -m pytest tests -q",
-        "./scripts/check-secrets.sh",
-        "python3 scripts/validate-env.py --example .env.example"
-      ]
-    },
-    {
-      "id": "maps-geolocation",
-      "priority": "p1",
-      "executor": "ui_executor",
-      "title": "Implement automatic coordinates and honest maps/AR setup flow",
-      "allowed_paths": [
-        "apps/web/src/pages/GeospatialPage.vue",
-        "apps/web/src/pages/ARMemoryPage.vue",
-        "apps/web/src/components/**",
-        "services/module-service/**",
-        "scripts/maps/**",
-        "scripts/certify/maps-smoke.sh",
-        "tests/**",
-        "docs/maps.md"
-      ],
-      "locked_paths": [
-        "apps/web/src/pages/GeospatialPage.vue",
-        "apps/web/src/pages/ARMemoryPage.vue"
-      ],
-      "depends_on": [
-        "ui-foundation"
-      ],
-      "prompt_file": ".agents/tasks/maps-geolocation.md",
-      "acceptance": [
-        "Use current location button via browser Geolocation",
-        "Permission denied shows manual fallback",
-        "Map data missing has setup state",
-        "Coordinate validation exists"
-      ],
-      "tests": [
-        "python3 -m pytest tests -q",
-        "./scripts/certify/maps-smoke.sh"
-      ]
-    },
-    {
-      "id": "model-runtime-realism",
-      "priority": "p1",
-      "executor": "backend_executor",
-      "title": "Separate demo heuristics from real model providers and add setup/certification",
-      "allowed_paths": [
-        "services/model-runtime/**",
-        "apps/web/src/pages/ModelRuntimePage.vue",
-        "scripts/setup-models.sh",
-        "scripts/certify/model-runtime-smoke.sh",
-        "Makefile",
-        "tests/**",
-        "docs/model-runtime.md"
-      ],
-      "locked_paths": [
-        "services/model-runtime/app/main.py",
-        "apps/web/src/pages/ModelRuntimePage.vue"
-      ],
-      "depends_on": [
-        "ui-foundation"
-      ],
-      "prompt_file": ".agents/tasks/model-runtime-realism.md",
-      "acceptance": [
-        "Heuristic mode clearly labeled demo-only",
-        "Provider status endpoint reports installed/configured/tested",
-        "Model setup docs/scripts exist",
-        "No UI claims production model readiness without provider test"
-      ],
-      "tests": [
-        "python3 -m pytest tests -q",
-        "./scripts/certify/model-runtime-smoke.sh"
-      ]
-    },
-    {
-      "id": "intelligence-layer",
-      "priority": "p2",
-      "executor": "claude",
-      "title": "Ethical intelligence center for OSINT/news/RSS/search monitoring",
-      "allowed_paths": [
-        "services",
-        "modules",
-        "apps/web/src/pages",
-        "apps/web/src/components",
-        "apps/web/src/services",
-        "infra/postgres/migrations",
-        "docs",
-        "tests"
-      ],
-      "locked_paths": [
-        "modules/intelligence",
-        "docs/intelligence.md"
-      ],
-      "depends_on": [
-        "ui-foundation",
-        "config-validation"
-      ],
-      "prompt_file": ".agents/tasks/intelligence-layer.md",
-      "acceptance": [
-        "Intelligence route/page exists",
-        "Public OSINT/news/RSS/search monitor model exists",
-        "No unauthorized surveillance or credential harvesting",
-        "SearXNG/RSS source status is represented",
-        "Findings can be saved to Zettelkasten/task conceptually or via safe endpoint",
-        "Smoke tests and docs exist"
-      ],
-      "tests": [
-        "python3 -m pytest tests -q",
-        "./scripts/certify/intelligence-smoke.sh"
-      ],
-      "branch": "agent/intelligence-layer"
-    },
-    {
-      "id": "backup-update-pipeline",
-      "priority": "p1",
-      "executor": "devops_executor",
-      "title": "Azure/AWS backup provider setup and safe update pipeline with ntfy progress",
-      "allowed_paths": [
-        "scripts/update.sh",
-        "scripts/preflight-update.sh",
-        "scripts/rollback-last-update.sh",
-        "scripts/certify/backup-smoke.sh",
-        "scripts/certify/update-smoke.sh",
-        "services/connector-service/**",
-        "apps/web/src/pages/BackupRestorePage.vue",
-        "apps/web/src/pages/ReleaseCenterPage.vue",
-        "Makefile",
-        "tests/**",
-        "docs/backup.md",
-        "docs/update-pipeline.md",
-        "docs/cloud-provider-strategy.md"
-      ],
-      "locked_paths": [
-        "Makefile",
-        "scripts/update.sh"
-      ],
-      "depends_on": [
-        "config-validation"
-      ],
-      "prompt_file": ".agents/tasks/backup-update-pipeline.md",
-      "acceptance": [
-        "Azure Blob backup setup state exists",
-        "AWS S3 backup setup state exists",
-        "No automatic paid provisioning",
-        "Update preflight backs up before rebuild",
-        "ntfy progress hooks are present when configured"
-      ],
-      "tests": [
-        "python3 -m pytest tests -q",
-        "./scripts/certify/backup-smoke.sh",
-        "./scripts/certify/update-smoke.sh"
-      ]
-    },
-    {
-      "id": "verify-integrate-tranche-1",
-      "priority": "p0",
-      "executor": "verifier",
-      "title": "Verify and integrate first tranche: UI foundation, capture, config validation",
-      "allowed_paths": [
-        "tests/**",
-        ".agents/reports/**",
-        "docs/v1-feature-matrix.md"
+        "scripts/generate-env.py",
+        "scripts/validate-env.py",
+        "tests/test_config_validation.py",
+        "tests/test_bootstrap_invariants.py"
       ],
       "locked_paths": [],
-      "depends_on": [
-        "ui-foundation",
-        "capture-e2e",
-        "config-validation"
-      ],
-      "prompt_file": ".agents/tasks/verify-integrate-tranche-1.md",
-      "acceptance": [
-        "Reports exist for all p0 tasks",
-        "Tests run or exact blockers documented",
-        "Merge order recommended",
-        "No secret-path changes"
-      ],
-      "tests": [
-        "python3 -m pytest tests -q",
-        "./scripts/check-secrets.sh",
-        "docker compose --env-file .env --profile full config"
-      ]
-    },
-    {
-      "id": "connector-marketplace",
-      "title": "Connector marketplace and modular install UX",
-      "priority": "p2",
-      "executor": "claude",
-      "branch": "agent/connector-marketplace",
-      "allowed_paths": [
-        "apps/web/src/pages",
-        "apps/web/src/components",
-        "apps/web/src/services",
-        "services/connector-service",
-        "services/api-gateway",
-        "modules",
-        "docs",
-        "tests"
-      ],
-      "locked_paths": [
-        "apps/web/src/pages/ConnectorsPage.vue",
-        "apps/web/src/pages/MarketplacePage.vue"
-      ],
-      "acceptance": [
-        "Marketplace route exists or connector page becomes marketplace-capable",
-        "Provider cards show installed/configured/connected/degraded states",
-        "Google/Microsoft/Twilio/ntfy/Tailscale/AWS/Azure/GitHub/Claude Code cards exist",
-        "Missing config shows setup actions, not raw errors",
-        "Tests and docs updated"
-      ]
-    },
-    {
-      "id": "obsidian-notion-trello",
-      "title": "Obsidian, Notion, and Trello connector skeletons",
-      "priority": "p2",
-      "executor": "codex",
-      "branch": "agent/obsidian-notion-trello",
-      "allowed_paths": [
-        "services/connector-service",
-        "apps/web/src/pages",
-        "apps/web/src/components",
-        "apps/web/src/services",
-        "modules",
-        "docs",
-        "tests"
-      ],
-      "locked_paths": [
-        "services/connector-service/app",
-        "docs/connectors.md"
-      ],
-      "acceptance": [
-        "Obsidian vault path config and dry-run import/export contract exist",
-        "Notion config and dry-run page/export contract exist",
-        "Trello config and dry-run card creation contract exist",
-        "No secrets stored in frontend localStorage",
-        "Structured config errors and tests exist"
-      ]
-    },
-    {
-      "id": "qa-route-endpoint-repair",
-      "title": "QA and repair all routes/endpoints",
-      "priority": "p0",
-      "executor": "claude",
-      "branch": "agent/qa-route-endpoint-repair",
-      "allowed_paths": [
-        "apps/web",
-        "services",
-        "scripts/certify",
-        "tests",
-        "docs",
-        "Makefile"
-      ],
-      "locked_paths": [
-        "scripts/certify",
-        "tests"
-      ],
-      "acceptance": [
-        "Every route has a page",
-        "Every nav link resolves",
-        "Every UI-used endpoint is documented or tested",
-        "Expected config errors are structured, not raw 500s",
-        "Non-destructive smoke script covers core routes/endpoints",
-        "QA report generated"
-      ]
+      "acceptance": "pytest tests/test_config_validation.py tests/test_bootstrap_invariants.py passes; python3 scripts/validate-env.py .env.example reports no errors"
     }
   ]
 }

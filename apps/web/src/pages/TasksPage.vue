@@ -70,6 +70,26 @@
               <q-btn
                 v-if="task.status !== 'completed'"
                 flat round size="sm"
+                icon="mdi-folder-star-outline"
+                color="primary"
+                :title="'Assign to project'"
+                :data-testid="`task-assign-${task.id}`"
+              >
+                <q-menu auto-close>
+                  <q-list dense style="min-width: 220px">
+                    <q-item-label header>Assign to project</q-item-label>
+                    <q-item v-for="project in projects" :key="project.id" clickable @click="assignProject(task.id, project.id)">
+                      <q-item-section>{{ project.name }}</q-item-section>
+                    </q-item>
+                    <q-item v-if="!projects.length">
+                      <q-item-section class="text-caption">No projects yet — create one on the Projects page.</q-item-section>
+                    </q-item>
+                  </q-list>
+                </q-menu>
+              </q-btn>
+              <q-btn
+                v-if="task.status !== 'completed'"
+                flat round size="sm"
                 icon="mdi-check"
                 color="positive"
                 @click="complete(task.id)"
@@ -92,7 +112,8 @@
 
 <script setup lang="ts">
 import { onMounted, computed, reactive, ref, watch } from 'vue'
-import { captureUrl, jsonFetch } from '../services/api'
+import { useRoute } from 'vue-router'
+import { captureUrl, jsonFetch, moduleUrl } from '../services/api'
 
 function parseErrorMessage(raw: string): string {
   try {
@@ -193,6 +214,29 @@ async function complete(id: string) {
   }
 }
 
+const projects = ref<any[]>([])
+
+async function loadProjects() {
+  try {
+    projects.value = await jsonFetch<any[]>(`${moduleUrl}/api/projects?status=active`)
+  } catch {
+    projects.value = [] // menu shows its empty state; tasks stay fully usable
+  }
+}
+
+async function assignProject(taskId: string, projectId: string) {
+  error.value = ''
+  try {
+    await jsonFetch<any>(`${captureUrl}/api/tasks/${taskId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ project_id: projectId }),
+    })
+    await load()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : String(err)
+  }
+}
+
 function clearForm() {
   form.title = ''
   form.body = ''
@@ -200,5 +244,10 @@ function clearForm() {
 }
 
 watch(filter, load)
-onMounted(load)
+const route = useRoute()
+onMounted(() => {
+  if (route.query.new === '1') showForm.value = true // palette "New task" action
+  void load()
+  void loadProjects()
+})
 </script>

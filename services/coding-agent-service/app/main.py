@@ -10,6 +10,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from . import graph
 from .policy import evaluate_prompt, safe_branch_slug
 from .runner import claude_available, git_available, run_coding_job
 
@@ -21,7 +22,10 @@ CODING_AGENT_EXECUTE = os.environ.get("CODING_AGENT_EXECUTE", "false").lower() i
 ALLOWED_REPO_ROOTS = [p for p in os.environ.get("CODING_AGENT_ALLOWED_REPO_ROOTS", DEFAULT_REPO_PATH).split(":") if p]
 
 app = FastAPI(title="Personal OS Coding Agent Service", version="0.14.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+# CORS origins are configurable via env (comma-separated). "*" is the local-dev
+# default; restrict to the gateway origin(s) on any non-tailnet deployment.
+CORS_ALLOW_ORIGINS = [o.strip() for o in os.environ.get("CORS_ALLOW_ORIGINS", "*").split(",") if o.strip()] or ["*"]
+app.add_middleware(CORSMiddleware, allow_origins=CORS_ALLOW_ORIGINS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 _pool: asyncpg.Pool | None = None
 
 
@@ -116,6 +120,11 @@ async def create_job(payload: CodingJobCreate) -> dict[str, Any]:
             payload.auto_approve,
             json.dumps({"decision": decision.reason, "allowed_roots": ALLOWED_REPO_ROOTS}),
         )
+        job_obj = await graph.register_object(
+            conn, kind="agent_run", domain_table="coding_agent_jobs", domain_id=job_id,
+            title=payload.title, status=status_value, meta={"mode": payload.mode, "branch": branch_name},
+        )
+        await graph.upsert_chunks(conn, job_obj, [f"{payload.title}\n\n{payload.prompt}"])
     return {"id": str(job_id), "status": status_value, "requires_approval": not payload.auto_approve, "branch_name": branch_name}
 
 
@@ -195,7 +204,12 @@ async def run_job(job_id: UUID, payload: RunRequest) -> dict[str, Any]:
             result.exit_code,
             json.dumps(result.artifacts),
         )
-        await conn.execute("UPDATE coding_agent_jobs SET status=$2, updated_at=now() WHERE id=$1", job_id, "completed" if result.status in {"succeeded", "dry_run"} else "failed")
+        job_status = "completed" if result.status in {"succeeded", "dry_run"} else "failed"
+        await conn.execute("UPDATE coding_agent_jobs SET status=$2, updated_at=now() WHERE id=$1", job_id, job_status)
+        await graph.register_object(
+            conn, kind="agent_run", domain_table="coding_agent_jobs", domain_id=job_id,
+            title=job["title"], status=job_status, meta={"last_run_id": str(run_id), "last_run_status": result.status},
+        )
     return {"run_id": str(run_id), "status": result.status, "execute": execute, "worktree_path": result.worktree_path, "stdout": result.stdout, "stderr": result.stderr, "artifacts": result.artifacts}
 
 

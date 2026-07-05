@@ -23,7 +23,10 @@ DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://personal_os:personal
 N8N_WEBHOOK_SECRET = os.environ.get("N8N_WEBHOOK_SECRET", "local-dev-only-change-me")
 
 app = FastAPI(title="Personal OS Automation Service", version="0.6.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+# CORS origins are configurable via env (comma-separated). "*" is the local-dev
+# default; restrict to the gateway origin(s) on any non-tailnet deployment.
+CORS_ALLOW_ORIGINS = [o.strip() for o in os.environ.get("CORS_ALLOW_ORIGINS", "*").split(",") if o.strip()] or ["*"]
+app.add_middleware(CORSMiddleware, allow_origins=CORS_ALLOW_ORIGINS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 _pool: asyncpg.Pool | None = None
 
 

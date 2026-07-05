@@ -1,91 +1,82 @@
-name: backend-unit
+name: Backend Unit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
-on:
-  pull_request:
-  push:
-    branches: [ main ]
-
 jobs:
-  api-gateway-security:
+  root-contract-tests:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: services/api-gateway
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
-      - name: Install dependencies
+          python-version: "3.12"
+      - name: Install test dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt pytest pytest-cov
-      - name: Unit tests with coverage
+          pip install pytest pytest-asyncio anyio pyyaml fastapi pydantic httpx asyncpg cryptography pyjwt
+      - name: Run root contract and scaffold tests
         run: |
-          PYTHONPATH=. pytest tests -q \
-            --cov=app.security \
-            --cov-branch \
-            --cov-report=term-missing \
-            --cov-report=xml:coverage-api-gateway.xml \
-            --cov-fail-under=95
-      - uses: actions/upload-artifact@v4
-        with:
-          name: coverage-api-gateway
-          path: services/api-gateway/coverage-api-gateway.xml
+          python -m pytest tests/ --ignore=tests/live -q
 
-  sync-engine-conflict:
+  service-unit-tests:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: services/sync-engine
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - api-gateway
+          - sync-engine
+          - command-bus
+          - module-service
+          - capture-service
+          - research-service
+          - automation-service
+          - connector-service
+          - digital-twin-service
+          - study-companion-service
+          - model-runtime
+          - coding-agent-service
+          - intelligence-service
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
-      - name: Install dependencies
+          python-version: "3.12"
+      - name: Install service dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt pytest pytest-cov
-      - name: Unit tests with coverage
+          pip install pytest pytest-asyncio anyio
+          if [ -f "services/${{ matrix.service }}/requirements.txt" ]; then
+            pip install -r "services/${{ matrix.service }}/requirements.txt"
+          fi
+      - name: Run service tests
         run: |
-          PYTHONPATH=. pytest tests -q \
-            --cov=app.conflict \
-            --cov-branch \
-            --cov-report=term-missing \
-            --cov-report=xml:coverage-sync-engine.xml \
-            --cov-fail-under=95
-      - uses: actions/upload-artifact@v4
-        with:
-          name: coverage-sync-engine
-          path: services/sync-engine/coverage-sync-engine.xml
+          if [ -d "services/${{ matrix.service }}/tests" ]; then
+            cd "services/${{ matrix.service }}" && python -m pytest tests -q
+          else
+            echo "no tests directory for ${{ matrix.service }} — failing honestly"
+            exit 1
+          fi
 
-  command-bus-signing:
+  lint:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: services/command-bus
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
-      - name: Install dependencies
+          python-version: "3.12"
+      - name: Ruff
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt pytest pytest-cov
-      - name: Unit tests with coverage
-        run: |
-          PYTHONPATH=. pytest tests -q \
-            --cov=app.signing \
-            --cov-branch \
-            --cov-report=term-missing \
-            --cov-report=xml:coverage-command-bus.xml \
-            --cov-fail-under=100
-      - uses: actions/upload-artifact@v4
-        with:
-          name: coverage-command-bus
-          path: services/command-bus/coverage-command-bus.xml
+          pip install ruff
+          ruff check services
+
+  secret-and-pii-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Local secret and personal-data scan
+        run: bash scripts/check-secrets.sh

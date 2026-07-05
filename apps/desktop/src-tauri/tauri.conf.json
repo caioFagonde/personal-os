@@ -12,6 +12,7 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Nexus Core \u00b7 Personal OS",
         "width": 1440,
         "height": 920,
@@ -24,6 +25,10 @@
     ],
     "security": {
       "csp": "default-src 'self'; connect-src 'self' http://localhost:* https://*.ts.net; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'"
+    },
+    "trayIcon": {
+      "id": "nexus-tray",
+      "tooltip": "Nexus Core \u00b7 Personal OS"
     }
   },
   "bundle": {

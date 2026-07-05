@@ -1,6 +1,5 @@
 import asyncio
 
-import pytest
 
 from app import acquisition
 from app.acquisition import search_arxiv, search_crossref, search_openalex, search_semantic_scholar, search_sources

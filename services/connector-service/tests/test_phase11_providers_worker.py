@@ -2,7 +2,6 @@ import base64
 
 import pytest
 
-from app.oauth import OAuthConfig
 from app.providers import gmail_raw_message, normalize_whatsapp_address, twilio_message_payload
 from app.worker import WorkerConfig, retry_delay_sql
 
@@ -32,5 +31,5 @@ def test_worker_config_has_safe_defaults():
 def test_twilio_payload_rejects_malformed_numbers():
     with pytest.raises(ValueError):
         normalize_whatsapp_address("1155963255206")
-    payload = twilio_message_payload(to="+5511944540999", body="ok", from_="whatsapp:+14155238886")
-    assert payload["To"] == "whatsapp:+5511944540999"
+    payload = twilio_message_payload(to="+5511999999999", body="ok", from_="whatsapp:+14155238886")
+    assert payload["To"] == "whatsapp:+5511999999999"

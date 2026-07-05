@@ -11,6 +11,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from . import graph
 from .evaluation import evaluate_golden_cases
 from .ontology import ontology_snapshot, stable_fingerprint, validate_entity, validate_relationship
 from .privacy import allowed_for_purpose, classify_sensitivity, normalize_policy, sanitize_memory_record
@@ -233,6 +234,15 @@ async def create_event(payload: TimelineEventCreate, _principal: Principal = Dep
             json.dumps(normalized["payload"]),
             sensitivity,
         )
+        # Graph registry dual-write (best-effort). Payloads can be sensitive:
+        # only the event type/source go into the registry title, never payload text.
+        event_obj = await graph.register_object(
+            conn, kind="event", domain_table="digital_twin_timeline_events", domain_id=row["id"],
+            title=f"{normalized['event_type']} ({normalized['source']})", status=sensitivity,
+            tags=list(normalized["domains"] or []), meta={"importance": normalized["importance"]},
+        )
+        if sensitivity == "public":
+            await graph.upsert_chunks(conn, event_obj, [f"{normalized['event_type']} {normalized['source']}"])
     return json_row(row)
 
 
@@ -301,6 +311,11 @@ async def create_goal(payload: GoalCreate, _principal: Principal = Depends(princ
             payload.status,
             json.dumps(payload.properties),
         )
+        goal_obj = await graph.register_object(
+            conn, kind="goal", domain_table="digital_twin_goals", domain_id=row["id"],
+            title=payload.title, status=payload.status, tags=[payload.domain] if payload.domain else [],
+        )
+        await graph.upsert_chunks(conn, goal_obj, [payload.title])
     return json_row(row)
 
 

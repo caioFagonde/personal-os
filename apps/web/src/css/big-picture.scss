@@ -1,0 +1,99 @@
+/* ===========================================================================
+   Big Picture theme — full-bleed console shell for Personal OS.
+   Loads after app.scss / nexus-dark.scss; existing pages keep working and
+   inherit the stage treatment from App.vue.
+
+   Optional (recommended) fonts — install then uncomment:
+     pnpm --filter web add @fontsource-variable/sora @fontsource/jetbrains-mono
+   ========================================================================= */
+@use '@fontsource-variable/sora';
+@use '@fontsource/jetbrains-mono/600.css' as *;
+
+:root {
+  /* Type roles: geometric display for module names, Inter for body,
+     mono for clocks / counts / system labels. */
+  --bp-font-display: 'Sora Variable', 'Sora', Inter, ui-sans-serif, system-ui, sans-serif;
+  --bp-font-body: Inter, ui-sans-serif, system-ui, sans-serif;
+  --bp-font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  --bp-bg: #04060d;
+  --bp-text: #eff6ff;
+  --bp-muted: #94a6c7;
+
+  /* Carousel geometry — TV-scale by default, tightened per breakpoint. */
+  --bp-tile-w: clamp(220px, 21vw, 340px);
+  --bp-tile-w-sm: clamp(140px, 12.5vw, 190px);
+  --bp-tile-gap: clamp(14px, 1.4vw, 24px);
+}
+
+/* The aurora owns the canvas; the page never paints its own background. */
+body.body--dark,
+body {
+  background: var(--bp-bg);
+}
+
+.bp-shell {
+  background: transparent;
+  font-family: var(--bp-font-body);
+}
+
+.bp-shell__pages {
+  /* Pages float above the fixed aurora layer. */
+  position: relative;
+  z-index: 1;
+  padding-top: 0 !important; /* AmbientBar is an overlay, not layout chrome */
+}
+
+/* Inside the stage, the legacy page width constraint relaxes — the panel
+   itself is the frame now. */
+.bp-stage .page-shell {
+  width: 100%;
+  padding: 0;
+}
+.bp-stage .q-page {
+  min-height: auto !important;
+}
+
+/* Quasar dark surfaces inside the stage stay transparent so the glass reads. */
+.bp-stage .q-card {
+  background: rgba(15, 22, 40, 0.66);
+  border: 1px solid rgba(160, 190, 255, 0.12);
+}
+
+/* Focus visibility — console UI must always show where you are. */
+.bp-shell :focus-visible {
+  outline: 2px solid var(--bp-accent, #7dd3fc);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+/* Quiet scrollbars befitting a full-bleed surface. */
+.bp-stage__panel::-webkit-scrollbar {
+  width: 10px;
+}
+.bp-stage__panel::-webkit-scrollbar-thumb {
+  background: rgba(160, 190, 255, 0.18);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+.bp-stage__panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Page transition reused from the legacy shell. */
+.page-fade-enter-active,
+.page-fade-leave-active {
+  transition: opacity 0.18s ease;
+}
+.page-fade-enter-from,
+.page-fade-leave-to {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-fade-enter-active,
+  .page-fade-leave-active {
+    transition: none;
+  }
+}

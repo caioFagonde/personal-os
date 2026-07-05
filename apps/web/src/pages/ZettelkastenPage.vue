@@ -31,7 +31,15 @@
     <div v-else-if="notes.length" class="module-grid">
       <q-card v-for="note in notes" :key="note.id" class="glass-card">
         <q-card-section>
-          <div class="text-h6">{{ note.title }}</div>
+          <div class="row items-center justify-between">
+            <div class="text-h6">{{ note.title }}</div>
+            <q-badge
+              v-if="syncChips[note.id]"
+              :color="chipColor(syncChips[note.id])"
+              :label="syncChips[note.id]"
+              outline
+            />
+          </div>
           <div class="text-caption" style="color:var(--nexus-muted)">{{ note.note_type }} · {{ note.slug }}</div>
           <div class="row q-gutter-xs q-mt-xs">
             <q-chip v-for="tag in note.tags" :key="tag" dense outline size="sm">{{ tag }}</q-chip>
@@ -52,6 +60,18 @@
         <q-card-section>
           <pre class="code-block">{{ JSON.stringify(selected, null, 2) }}</pre>
         </q-card-section>
+        <q-card-section v-if="neighbors.length">
+          <div class="text-subtitle2 q-mb-xs">Graph neighbors</div>
+          <q-list dense>
+            <q-item v-for="n in neighbors" :key="n.object.id">
+              <q-item-section avatar><q-icon :name="kindIcons[n.object.kind] ?? 'mdi-shape-outline'" size="18px" /></q-item-section>
+              <q-item-section>
+                <q-item-label>{{ n.object.title || n.object.kind }}</q-item-label>
+                <q-item-label caption>{{ n.direction === 'out' ? n.rel : `${n.rel} (inbound)` }} · {{ n.object.kind }}</q-item-label>
+              </q-item-section>
+            </q-item>
+          </q-list>
+        </q-card-section>
         <q-card-actions align="right">
           <q-btn flat label="Close" v-close-popup />
         </q-card-actions>
@@ -63,7 +83,32 @@
 import { onMounted, ref } from 'vue'
 import NexusPageHero from '../components/NexusPageHero.vue'
 import NexusEmptyState from '../components/NexusEmptyState.vue'
-import { deviceKey, jsonFetch, moduleUrl } from '../services/api'
+import { connectorsUrl, deviceKey, jsonFetch, moduleUrl } from '../services/api'
+import { graphNeighbors, graphObjectFor, kindIcons, type GraphNeighbor } from '../services/graph'
+
+// Per-note vault sync chips (Phase D): synced | pending | conflict | app-only.
+const syncChips = ref<Record<string, string>>({})
+
+function chipColor(state: string): string {
+  return { synced: 'positive', pending: 'warning', conflict: 'negative', vault_only: 'info' }[state] ?? 'grey'
+}
+
+async function loadSyncChips() {
+  try {
+    const files = await jsonFetch<{ domain_id: string | null; kind: string; status: string }[]>(
+      `${connectorsUrl}/api/connectors/obsidian/sync/files`)
+    const map: Record<string, string> = {}
+    for (const file of files) {
+      if (file.kind === 'note' && file.domain_id) map[file.domain_id] = file.status
+    }
+    for (const note of notes.value) {
+      if (!map[note.id]) map[note.id] = 'app-only'
+    }
+    syncChips.value = map
+  } catch {
+    syncChips.value = {} // vault not configured — no chips, page fully usable
+  }
+}
 
 const notes = ref<any[]>([])
 const error = ref('')
@@ -71,6 +116,7 @@ const loading = ref(false)
 const creating = ref(false)
 const selected = ref<any>({})
 const dialog = ref(false)
+const neighbors = ref<GraphNeighbor[]>([])
 const tagText = ref('')
 const draft = ref({ title: '', body: '', note_type: 'permanent' })
 
@@ -112,11 +158,15 @@ async function createNote() {
 
 async function openNote(id: string) {
   error.value = ''
+  neighbors.value = []
   try {
     selected.value = await jsonFetch(`${moduleUrl}/api/zettelkasten/notes/${id}`)
     dialog.value = true
+    // Backlinks via the graph registry (best-effort; dialog works without it).
+    const obj = await graphObjectFor('note', id)
+    if (obj) neighbors.value = await graphNeighbors(obj.id)
   } catch (err) {
-    error.value = err instanceof Error ? err.message : String(err)
+    if (!dialog.value) error.value = err instanceof Error ? err.message : String(err)
   }
 }
 
@@ -130,5 +180,8 @@ async function exportNote(id: string) {
   }
 }
 
-onMounted(load)
+onMounted(async () => {
+  await load()
+  await loadSyncChips()
+})
 </script>

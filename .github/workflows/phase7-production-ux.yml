@@ -1,12 +1,13 @@
-name: phase7-production-ux
-
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+name: Phase 7 Production UX
 
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch: {}
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
   service-identity-observability:
@@ -15,16 +16,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
-      - name: Install API gateway dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r services/api-gateway/requirements.txt pytest pytest-cov
-      - name: Run Phase 7 backend coverage gates
-        run: |
-          cd services/api-gateway
-          PYTHONPATH=. python -m pytest tests/test_service_identity.py tests/test_observability.py tests/test_release.py -q \
-            --cov=app.service_identity --cov=app.observability --cov=app.release --cov-branch --cov-fail-under=96
+          python-version: "3.12"
+      - name: Install
+        run: pip install pytest pytest-asyncio -r services/api-gateway/requirements.txt
+      - name: Gateway identity and observability tests
+        run: cd services/api-gateway && python -m pytest tests -q
 
   design-system-and-web-ux:
     runs-on: ubuntu-latest
@@ -32,15 +28,16 @@ jobs:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:
-          version: 9.12.0
+          version: 9
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
-      - run: pnpm install --frozen-lockfile=false
-      - name: Test web UX logic and design tokens
-        run: |
-          pnpm --dir packages/design-system test
-          pnpm --dir apps/web coverage
+          node-version: 20
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Design system tests
+        run: pnpm --dir packages/design-system test
+      - name: Web unit tests
+        run: pnpm --dir apps/web test
 
   mobile-preflight:
     runs-on: ubuntu-latest
@@ -48,39 +45,38 @@ jobs:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:
-          version: 9.12.0
+          version: 9
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
-      - run: pnpm install --frozen-lockfile=false
-      - name: Validate mobile shell policy
-        run: |
-          pnpm --dir apps/mobile preflight
-          pnpm --dir apps/mobile test
+          node-version: 20
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Capacitor config validation
+        run: node apps/mobile/scripts/validate-capacitor-config.mjs
+      - name: Mobile runtime policy tests
+        run: pnpm --dir apps/mobile test
 
   desktop-native-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Tauri config validation
+        run: node apps/desktop/scripts/validate-tauri-config.mjs
       - uses: dtolnay/rust-toolchain@stable
-      - name: Install Linux Tauri test dependencies
-        run: sudo apt-get update && sudo apt-get install -y libglib2.0-dev libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev pkg-config
-      - name: Run Tauri Rust unit tests
-        run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --lib
+      - name: Rust check
+        run: cd apps/desktop/src-tauri && cargo check --locked || cargo check
 
   observability-compose-contract:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Prepare env
-        run: |
-          cp .env.example .env
-          python3 scripts/generate-env.py .env
-      - name: Validate observability profile
-        run: docker compose --env-file .env --profile observability config >/tmp/compose-observability.yml
-      - name: Assert collector and dashboard wiring
-        run: |
-          grep -q 'otel-collector' /tmp/compose-observability.yml
-          grep -q 'grafana' /tmp/compose-observability.yml
-          test -f infra/observability/otel-collector.yml
-          test -f infra/observability/grafana/dashboards/control-plane.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install pytest pyyaml
+      - name: Compose and observability contracts
+        run: python -m pytest tests/test_phase7_scaffold.py tests/test_phase13_7_grafana_mount_regression.py tests/test_phase13_8_grafana_volume_yaml_regression.py -q

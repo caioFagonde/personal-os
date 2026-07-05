@@ -8,7 +8,8 @@ from app.backup import BackupConfigurationError, backup_setup_status, create_bac
 
 
 def test_create_backup_bundle_is_encrypted_and_excludes_env(tmp_path: Path):
-    root = tmp_path / "repo"; root.mkdir()
+    root = tmp_path / "repo"
+    root.mkdir()
     (root / ".env").write_text("SECRET=bad\n")
     (root / ".env.example").write_text("SECRET=\n")
     key = Fernet.generate_key().decode()

@@ -29,19 +29,54 @@
         </div>
       </q-card-section>
     </q-card>
+
+    <q-card class="glass-card">
+      <q-card-section>
+        <div class="text-h6 q-mb-xs">This is the new device</div>
+        <p class="text-caption">
+          When AUTH_REQUIRED=true, new devices must present a pairing code minted on an
+          already-trusted device. Enter it here, then register. The code is single-use,
+          expires in 15 minutes, and is held only for this browser session.
+        </p>
+        <div class="row q-gutter-sm items-center">
+          <q-input v-model="enteredCode" dense outlined label="Pairing code" style="min-width:220px" />
+          <q-btn color="primary" unelevated label="Register this device" :loading="registering" @click="registerWithCode" />
+        </div>
+        <div v-if="registerResult" class="q-mt-sm">{{ registerResult }}</div>
+      </q-card-section>
+    </q-card>
   </q-page>
 </template>
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import NexusPageHero from '../components/NexusPageHero.vue'
-import { connectorsUrl, jsonFetch } from '../services/api'
+import { apiUrl, connectorsUrl, jsonFetch } from '../services/api'
+import { registerDevice, setPairingCode } from '../services/auth'
 
 const pairing = ref<any | null>(null)
 const error = ref('')
 const creating = ref(false)
+const enteredCode = ref('')
+const registering = ref(false)
+const registerResult = ref('')
 const qrUrl = computed(() =>
   pairing.value ? `${connectorsUrl}/api/connectors/device-pairing/qr?url=${encodeURIComponent(pairing.value.url)}` : ''
 )
+
+async function registerWithCode() {
+  registering.value = true
+  registerResult.value = ''
+  error.value = ''
+  try {
+    if (enteredCode.value.trim()) setPairingCode(enteredCode.value)
+    await registerDevice(apiUrl)
+    registerResult.value = 'Device registered and paired. You can close this page.'
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : String(e)
+  } finally {
+    registering.value = false
+  }
+}
 
 async function create() {
   creating.value = true

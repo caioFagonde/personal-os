@@ -19,30 +19,33 @@
   },
   "dependencies": {
     "@capacitor/android": "^6.1.2",
+    "@capacitor/app": "^6.0.1",
     "@capacitor/cli": "^6.1.2",
     "@capacitor/core": "^6.1.2",
-    "@quasar/extras": "^1.16.12",
+    "@capacitor/device": "^6.0.1",
+    "@capacitor/haptics": "^6.0.1",
+    "@capacitor/local-notifications": "^6.1.0",
+    "@fontsource-variable/sora": "^5.2.8",
+    "@fontsource/jetbrains-mono": "^5.2.8",
+    "@fontsource/vt323": "^5.2.7",
     "@quasar/app-vite": "^2.0.0",
+    "@quasar/extras": "^1.16.12",
+    "localforage": "^1.10.0",
     "pinia": "^2.2.4",
     "quasar": "^2.17.0",
     "vue": "^3.5.12",
-    "vue-router": "^4.4.5",
-    "localforage": "^1.10.0",
-    "@capacitor/app": "^6.0.1",
-    "@capacitor/device": "^6.0.1",
-    "@capacitor/haptics": "^6.0.1",
-    "@capacitor/local-notifications": "^6.1.0"
+    "vue-router": "^4.4.5"
   },
   "devDependencies": {
-    "typescript": "^5.6.3",
-    "vite": "^5.4.10",
+    "@playwright/test": "^1.49.1",
     "@vitejs/plugin-vue": "^5.1.4",
     "@vitest/coverage-v8": "^2.1.4",
     "@vue/test-utils": "^2.4.6",
     "jsdom": "^25.0.1",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
     "vitest": "^2.1.4",
-    "vue-tsc": "^2.1.8",
-    "@playwright/test": "^1.49.1"
+    "vue-tsc": "^2.1.8"
   },
   "version": "0.7.0"
 }

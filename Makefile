@@ -54,6 +54,21 @@ seed:
 backup:
 	./scripts/backup.sh
 
+.PHONY: backup-v2 backup-verify backup-prune backup-remote
+backup-v2:
+	./scripts/backup-v2.sh
+
+backup-verify:
+	@test -n "$(SNAP)" || { echo "Usage: make backup-verify SNAP=backups/<snapshot>"; exit 2; }
+	./scripts/backup-verify.sh "$(SNAP)"
+
+backup-prune:
+	./scripts/backup-prune.sh $(if $(EXECUTE),--execute,)
+
+backup-remote:
+	@test -n "$(SNAP)" || { echo "Usage: make backup-remote SNAP=backups/<snapshot> [REMOTE=nexus-drive]"; exit 2; }
+	./scripts/backup-remote.sh "$(SNAP)" "$(or $(REMOTE),nexus-drive)"
+
 restore:
 	./scripts/restore.sh
 
@@ -235,3 +250,19 @@ certify-backup:
 
 certify-update:
 	./scripts/certify/update-smoke.sh
+
+# --- Phase A: packaging & hygiene -------------------------------------------
+.PHONY: package check-secrets test-phase-a
+
+# Source archives are built exclusively via git archive so tracked-files-only
+# semantics guarantee no .env, node_modules, dist, data, or logs ever ship.
+package:
+	@mkdir -p generated
+	git archive --format=zip -o generated/personal-os-src-$$(git rev-parse --short HEAD).zip HEAD
+	@echo "wrote generated/personal-os-src-$$(git rev-parse --short HEAD).zip"
+
+check-secrets:
+	bash scripts/check-secrets.sh
+
+test-phase-a:
+	python -m pytest tests/test_phase_a_hygiene.py -q

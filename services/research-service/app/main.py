@@ -13,6 +13,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFi
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from . import graph
 from .acquisition import search_sources
 from .pdf_ingest import chunk_text, estimate_tokens, extract_citations, extract_pdf_text, sha256_bytes
 from .security import optional_principal, require_scope
@@ -23,7 +24,10 @@ RESEARCH_CACHE_DIR = Path(os.environ.get("RESEARCH_CACHE_DIR", "/data/research/p
 FETCH_MAX_BYTES = int(os.environ.get("RESEARCH_FETCH_MAX_BYTES", "52428800"))
 
 app = FastAPI(title="Personal OS Research Service", version="0.5.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+# CORS origins are configurable via env (comma-separated). "*" is the local-dev
+# default; restrict to the gateway origin(s) on any non-tailnet deployment.
+CORS_ALLOW_ORIGINS = [o.strip() for o in os.environ.get("CORS_ALLOW_ORIGINS", "*").split(",") if o.strip()] or ["*"]
+app.add_middleware(CORSMiddleware, allow_origins=CORS_ALLOW_ORIGINS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 _pool: asyncpg.Pool | None = None
 
 
@@ -364,6 +368,13 @@ async def ingest_pdf_bytes(content: bytes, title: str, device_key: str, source_k
                 citation.confidence,
             )
         await record_change(conn, device_id, "research", "research_document", entity_id, "create", {"document_id": str(document_id), "title": title, "sha256": digest})
+        # Graph registry dual-write (best-effort): documents are `source` objects.
+        source_obj = await graph.register_object(
+            conn, kind="source", domain_table="research_documents", domain_id=document_id,
+            title=title, status=extracted.status,
+            meta={"source_kind": source_kind, "source_url": source_url, "sha256": digest},
+        )
+        await graph.upsert_chunks(conn, source_obj, [title, *chunks[: graph.MAX_CHUNKS - 1]])
     return {"document_id": row["id"], "title": row["title"], "object_uri": row["object_uri"], "sha256": row["content_sha256"], "page_count": row["page_count"], "text_status": row["text_status"], "chunks": len(chunks), "citations": len(citations)}
 
 

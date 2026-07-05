@@ -51,14 +51,26 @@ export function authHeaders(): Record<string, string> {
 
 export function buildRegistrationPayload() {
   const kind = platformKind()
+  // One-time pairing code entered on the Device Pairing page. Kept in
+  // sessionStorage only (single-use, 15-minute server TTL) — never localStorage.
+  const pairingCode = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('nexus-pairing-code') : null
   return {
     device_key: deviceKey(),
     name: `${kind} shell`,
     kind,
     platform: navigator.platform || 'unknown',
     app_version: import.meta.env.VITE_APP_VERSION || '0.4.0',
-    build_channel: import.meta.env.VITE_BUILD_CHANNEL || 'dev'
+    build_channel: import.meta.env.VITE_BUILD_CHANNEL || 'dev',
+    ...(pairingCode ? { pairing_code: pairingCode } : {})
   }
+}
+
+export function setPairingCode(code: string) {
+  sessionStorage.setItem('nexus-pairing-code', code.trim())
+}
+
+export function clearPairingCode() {
+  sessionStorage.removeItem('nexus-pairing-code')
 }
 
 export async function registerDevice(apiUrl: string): Promise<TokenPair> {
@@ -72,6 +84,7 @@ export async function registerDevice(apiUrl: string): Promise<TokenPair> {
   }
   const pair = await response.json() as TokenPair
   setTokens(pair)
+  clearPairingCode()
   return pair
 }
 

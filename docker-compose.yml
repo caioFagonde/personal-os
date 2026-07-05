@@ -104,6 +104,7 @@ services:
       CAPTURE_SERVICE_URL: http://capture-service:8087
       STUDY_COMPANION_SERVICE_URL: http://study-companion-service:8088
       CONNECTOR_SERVICE_URL: http://connector-service:8094
+      EMBEDDINGS_SERVICE_URL: http://embeddings:8090
       MODEL_RUNTIME_SERVICE_URL: http://model-runtime:8095
       CODING_AGENT_SERVICE_URL: http://coding-agent-service:8096
       AUTH_REQUIRED: ${AUTH_REQUIRED:-false}
@@ -497,9 +498,17 @@ services:
     profiles: ["ai", "research", "full"]
     <<: *restart
     env_file: .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      NATS_URL: ${NATS_URL:-nats://nats:4222}
+      OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
+      EMBED_MODEL: ${EMBED_MODEL:-nomic-embed-text}
+      EMBED_DIM: ${EMBED_DIM:-768}
     ports:
       - "8090:8090"
     depends_on:
+      postgres:
+        condition: service_healthy
       qdrant:
         condition: service_started
     networks: [personal_os_net]

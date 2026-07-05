@@ -17,10 +17,12 @@ from pydantic import BaseModel, Field
 
 from .config_validation import is_sensitive_key, public_setting, validate_setting
 from .crypto import encrypt_text
+from .graph import build_router as build_graph_router
 from .observability import RedMetrics
 from .release import release_manifest
 from .security import (
     ACTIVE_JWT_KID,
+    AUTH_REQUIRED,
     Principal,
     extract_bearer_token,
     issue_token,
@@ -28,6 +30,12 @@ from .security import (
     require_scope,
     token_hash,
 )
+
+# When auth is enforced, new devices must present a valid single-use pairing code
+# (minted from an already-trusted device via connector-service /device-pairing).
+# The very first device bootstraps without a code; existing non-revoked device
+# keys may re-register (token re-issue) without one.
+REQUIRE_DEVICE_PAIRING = os.environ.get("REQUIRE_DEVICE_PAIRING", "true").lower() in {"1", "true", "yes"}
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://personal_os:personal_os@localhost:5432/personal_os")
 MODULES_DIR = Path(os.environ.get("MODULES_DIR", "/workspace/modules"))
@@ -42,6 +50,7 @@ STUDY_COMPANION_SERVICE_URL = os.environ.get("STUDY_COMPANION_SERVICE_URL", "htt
 CONNECTOR_SERVICE_URL = os.environ.get("CONNECTOR_SERVICE_URL", "http://connector-service:8094")
 MODEL_RUNTIME_SERVICE_URL = os.environ.get("MODEL_RUNTIME_SERVICE_URL", "http://model-runtime:8095")
 CODING_AGENT_SERVICE_URL = os.environ.get("CODING_AGENT_SERVICE_URL", "http://coding-agent-service:8096")
+INTELLIGENCE_SERVICE_URL = os.environ.get("INTELLIGENCE_SERVICE_URL", "http://intelligence-service:8097")
 ACCESS_TOKEN_TTL_SECONDS = int(os.environ.get("ACCESS_TOKEN_TTL_SECONDS", "900"))
 REFRESH_TOKEN_TTL_DAYS = int(os.environ.get("REFRESH_TOKEN_TTL_DAYS", "30"))
 DEFAULT_DEVICE_SCOPES = [
@@ -74,6 +83,8 @@ DEFAULT_DEVICE_SCOPES = [
     "model_runtime:write",
     "coding_agent:read",
     "coding_agent:write",
+    "intelligence:read",
+    "intelligence:write",
 ]
 
 app = FastAPI(title="Personal OS API Gateway", version="0.7.0")
@@ -123,6 +134,7 @@ class DeviceRegistration(BaseModel):
     app_version: str | None = None
     build_channel: str = "dev"
     requested_scopes: list[str] = Field(default_factory=list)
+    pairing_code: str | None = Field(default=None, max_length=64)
 
 
 class AuthRefreshRequest(BaseModel):
@@ -294,6 +306,35 @@ async def register_device(payload: DeviceRegistration, request: Request) -> dict
     p = await pool()
     async with p.acquire() as conn:
         profile_id = await conn.fetchval("SELECT id FROM profiles WHERE handle='default'")
+        pairing_row_id = None
+        if AUTH_REQUIRED and REQUIRE_DEVICE_PAIRING:
+            existing_device = await conn.fetchval(
+                "SELECT id FROM devices WHERE device_key=$1 AND revoked_at IS NULL", payload.device_key
+            )
+            any_device = await conn.fetchval("SELECT count(*) FROM devices WHERE revoked_at IS NULL")
+            first_device_bootstrap = (any_device or 0) == 0
+            if existing_device is None and not first_device_bootstrap:
+                if not payload.pairing_code:
+                    raise HTTPException(status_code=403, detail={
+                        "code": "pairing_required",
+                        "message": "New device registration requires a pairing code while AUTH_REQUIRED=true.",
+                        "action": "Open Device Pairing on an already-trusted device and enter the code here.",
+                    })
+                pairing_row_id = await conn.fetchval(
+                    """
+                    SELECT id FROM device_pairing_codes
+                    WHERE consumed_at IS NULL AND expires_at > now()
+                      AND code_hash = crypt($1, code_hash)
+                    ORDER BY created_at DESC LIMIT 1
+                    """,
+                    payload.pairing_code,
+                )
+                if pairing_row_id is None:
+                    raise HTTPException(status_code=403, detail={
+                        "code": "invalid_pairing_code",
+                        "message": "Pairing code is invalid, expired, or already used.",
+                        "action": "Generate a fresh code (valid 15 minutes) and try again.",
+                    })
         device_id = await conn.fetchval(
             """
             INSERT INTO devices(profile_id, device_key, name, kind, platform, public_key, tailscale_ip, trust_level, last_seen_at, app_version, build_channel)
@@ -320,8 +361,14 @@ async def register_device(payload: DeviceRegistration, request: Request) -> dict
             payload.app_version,
             payload.build_channel,
         )
+        if pairing_row_id is not None:
+            await conn.execute(
+                "UPDATE device_pairing_codes SET consumed_at=now(), consumed_by_device_id=$2 WHERE id=$1 AND consumed_at IS NULL",
+                pairing_row_id,
+                device_id,
+            )
         token_pair = await create_token_pair(conn, profile_id, device_id, scopes, request.headers.get("user-agent"))
-        await audit(conn, profile_id, device_id, None, "device.register", "device", str(device_id), {"device_key": payload.device_key, "kind": payload.kind})
+        await audit(conn, profile_id, device_id, None, "device.register", "device", str(device_id), {"device_key": payload.device_key, "kind": payload.kind, "paired": pairing_row_id is not None})
     return {"device_id": str(device_id), **token_pair, "token_type": "bearer", "expires_in": ACCESS_TOKEN_TTL_SECONDS}
 
 
@@ -596,6 +643,12 @@ async def proxy_coding_agent(path: str, request: Request, principal: Principal =
     return await proxy_request(CODING_AGENT_SERVICE_URL, path, request)
 
 
+@app.api_route("/api/proxy/intelligence/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
+async def proxy_intelligence(path: str, request: Request, principal: Principal = Depends(active_principal)) -> Response:
+    require_scope(principal, "intelligence:read" if request.method == "GET" else "intelligence:write")
+    return await proxy_request(INTELLIGENCE_SERVICE_URL, path, request)
+
+
 async def proxy_request(base_url: str, path: str, request: Request) -> Response:
     body = await request.body()
     excluded = {"host", "content-length"}
@@ -704,6 +757,10 @@ async def seed_modules_from_manifests() -> int:
             )
             count += 1
     return count
+
+
+# Graph read API (Phase B4): /api/graph/objects, .../neighbors, .../search.
+app.include_router(build_graph_router(pool, active_principal))
 
 
 async def audit(conn: asyncpg.Connection, profile_id: UUID | None, device_id: UUID | None, module_id: str | None, action: str, target_type: str, target_id: str, metadata: dict[str, Any]) -> None:

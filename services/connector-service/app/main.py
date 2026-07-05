@@ -6,6 +6,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
 import asyncpg
 import httpx
@@ -33,6 +34,7 @@ from .providers import (
     twilio_message_payload,
     validate_obsidian_vault_path,
 )
+from .vault_sync import VaultSync
 from .worker import ConnectorWorker, WorkerConfig, run_worker_forever
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://personal_os:personal_os@localhost:5432/personal_os")
@@ -48,7 +50,10 @@ CONNECTOR_WORKER_INTERVAL_SECONDS = float(os.environ.get("CONNECTOR_WORKER_INTER
 PROVIDERS = ("google", "microsoft", "twilio", "ntfy", "tailscale", "obsidian", "notion", "trello")
 
 app = FastAPI(title="Personal OS Connector Service", version="1.0.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+# CORS origins are configurable via env (comma-separated). "*" is the local-dev
+# default; restrict to the gateway origin(s) on any non-tailnet deployment.
+CORS_ALLOW_ORIGINS = [o.strip() for o in os.environ.get("CORS_ALLOW_ORIGINS", "*").split(",") if o.strip()] or ["*"]
+app.add_middleware(CORSMiddleware, allow_origins=CORS_ALLOW_ORIGINS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 _pool: asyncpg.Pool | None = None
 _worker_task: asyncio.Task | None = None
 _worker_stop: asyncio.Event | None = None
@@ -109,7 +114,6 @@ class TrelloCardCreateRequest(BaseModel):
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
-    import json
     from fastapi.responses import JSONResponse
     if isinstance(exc, HTTPException):
         detail = exc.detail
@@ -594,6 +598,91 @@ async def obsidian_import(payload: ObsidianImportRequest) -> dict[str, Any]:
     }
 
 
+# --- Vault sync (Phase D): the vault as a peer replica -------------------------
+# The legacy /export and /import endpoints above keep their contracts
+# (create-only export, permanently-dry-run import). Bidirectional sync with
+# 3-way merge lives here, write-gated by the obsidian_vault_write setting.
+
+class VaultSyncRunRequest(BaseModel):
+    execute: bool = False
+    direction: str = Field(default="both", pattern="^(both|outbound|inbound)$")
+
+
+class VaultEnableRequest(BaseModel):
+    enabled: bool
+
+
+class VaultResolveRequest(BaseModel):
+    relative_path: str = Field(min_length=1, max_length=500)
+    resolution: str = Field(pattern="^(keep_app|keep_vault)$")
+    execute: bool = False
+
+
+async def vault_sync_instance() -> VaultSync:
+    env = require_connector_config("obsidian")
+    p = await pool()
+    return VaultSync(p, env["OBSIDIAN_VAULT_PATH"])
+
+
+@app.get("/api/connectors/obsidian/sync/status")
+async def vault_sync_status() -> dict[str, Any]:
+    sync = await vault_sync_instance()
+    return await sync.status()
+
+
+@app.get("/api/connectors/obsidian/sync/files")
+async def vault_sync_files(status: str | None = Query(default=None)) -> list[dict[str, Any]]:
+    sync = await vault_sync_instance()
+    return await sync.files(status)
+
+
+@app.post("/api/connectors/obsidian/sync/index")
+async def vault_sync_index() -> dict[str, Any]:
+    sync = await vault_sync_instance()
+    return await sync.index()
+
+
+@app.post("/api/connectors/obsidian/sync/run")
+async def vault_sync_run(payload: VaultSyncRunRequest) -> dict[str, Any]:
+    sync = await vault_sync_instance()
+    result: dict[str, Any] = {"provider": "obsidian", "operation": "vault_sync"}
+    await sync.index()
+    if payload.direction in ("both", "inbound"):
+        result["inbound"] = await sync.sync_inbound(payload.execute)
+    if payload.direction in ("both", "outbound"):
+        result["outbound"] = await sync.sync_outbound(payload.execute)
+    if payload.execute and not await sync.write_enabled():
+        result["note"] = "execute requested but vault write is disabled — enable it in Settings (runs a one-time vault backup)."
+    return result
+
+
+@app.post("/api/connectors/obsidian/sync/enable")
+async def vault_sync_enable(payload: VaultEnableRequest) -> dict[str, Any]:
+    sync = await vault_sync_instance()
+    result = await sync.set_write_enabled(payload.enabled)
+    return {"provider": "obsidian", "operation": "vault_write_toggle", **result}
+
+
+@app.post("/api/connectors/obsidian/sync/resolve")
+async def vault_sync_resolve(payload: VaultResolveRequest) -> dict[str, Any]:
+    sync = await vault_sync_instance()
+    try:
+        return await sync.resolve(payload.relative_path, payload.resolution, payload.execute)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@app.get("/api/connectors/obsidian/projects/{project_id}/canvas")
+async def vault_project_canvas(project_id: UUID, execute: bool = Query(default=False)) -> dict[str, Any]:
+    sync = await vault_sync_instance()
+    try:
+        return await sync.export_canvas(project_id, execute)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
 @app.post("/api/connectors/notion/pages/dry-run")
 async def notion_page_create_dry_run(payload: NotionPageCreateRequest) -> dict[str, Any]:
     env = require_connector_config("notion")
@@ -780,8 +869,38 @@ async def backup_status() -> dict[str, Any]:
 async def backup_manifests() -> list[dict[str, Any]]:
     p = await pool()
     async with p.acquire() as conn:
-        rows = await conn.fetch("SELECT backup_id, archive_path, sha256, included_paths, created_at FROM backup_manifests ORDER BY created_at DESC LIMIT 50")
+        rows = await conn.fetch("SELECT backup_id, archive_path, sha256, included_paths, created_at, verified_at FROM backup_manifests ORDER BY created_at DESC LIMIT 50")
     return [dict(r) for r in rows]
+
+
+@app.get("/api/connectors/backup/continuity")
+async def backup_continuity() -> dict[str, Any]:
+    """Continuity backup tiles (Phase E5): last snapshot age + verified, remote
+    copy age, drill status, retention summary — all live, no synthetic scores."""
+    p = await pool()
+    async with p.acquire() as conn:
+        latest = await conn.fetchrow(
+            "SELECT backup_id, created_at, verified_at, verify_status FROM backup_manifests ORDER BY created_at DESC LIMIT 1"
+        )
+        latest_verified = await conn.fetchrow(
+            "SELECT backup_id, created_at, verified_at FROM backup_manifests WHERE verified_at IS NOT NULL ORDER BY verified_at DESC LIMIT 1"
+        )
+        remote = await conn.fetchrow(
+            "SELECT provider, remote_uri, status, completed_at FROM remote_backup_uploads WHERE status='uploaded' ORDER BY completed_at DESC NULLS LAST LIMIT 1"
+        )
+        drill = await conn.fetchrow(
+            "SELECT status, started_at, completed_at FROM restore_drills ORDER BY started_at DESC LIMIT 1"
+        )
+        total = await conn.fetchval("SELECT count(*) FROM backup_manifests")
+        verified_count = await conn.fetchval("SELECT count(*) FROM backup_manifests WHERE verified_at IS NOT NULL")
+    return {
+        "latest": dict(latest) if latest else None,
+        "latest_verified": dict(latest_verified) if latest_verified else None,
+        "remote": dict(remote) if remote else None,
+        "last_drill": dict(drill) if drill else None,
+        "retention": {"total_snapshots": total, "verified_snapshots": verified_count},
+        "encryption": backup_setup_status(dict(os.environ))["encryption"],
+    }
 
 
 @app.post("/api/connectors/device-pairing")

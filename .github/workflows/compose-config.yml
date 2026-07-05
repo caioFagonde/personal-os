@@ -1,0 +1,45 @@
+name: Compose Config
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  compose-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create env from template with generated secrets
+        run: |
+          cp .env.example .env
+          python3 scripts/generate-env.py .env
+      - name: Validate env template and generated env
+        run: |
+          python3 scripts/validate-env.py .env.example || true
+          python3 scripts/validate-env.py .env
+      - name: docker compose config (full profile)
+        run: docker compose --profile "*" config -q
+      - name: Shell script syntax
+        run: |
+          for f in scripts/*.sh scripts/*/*.sh; do bash -n "$f"; done
+
+  archive-hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build source archive via git archive and verify hygiene
+        run: |
+          git archive --format=tar HEAD -o /tmp/source.tar
+          if tar -tf /tmp/source.tar | grep -E '(^|/)(node_modules|dist|\.quasar|__pycache__)/' ; then
+            echo "generated artifacts leaked into source archive" >&2
+            exit 1
+          fi
+          if tar -tf /tmp/source.tar | grep -E '(^|/)\.env$' ; then
+            echo ".env leaked into source archive" >&2
+            exit 1
+          fi
+          echo "archive hygiene OK"

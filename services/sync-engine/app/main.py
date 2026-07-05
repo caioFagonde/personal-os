@@ -24,7 +24,10 @@ MINIO_ACCESS_KEY = os.environ.get("MINIO_ROOT_USER", "")
 MINIO_SECRET_KEY = os.environ.get("MINIO_ROOT_PASSWORD", "")
 MINIO_BUCKET = os.environ.get("MINIO_BUCKET", "artifacts")
 app = FastAPI(title="Personal OS Sync Engine", version="0.2.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+# CORS origins are configurable via env (comma-separated). "*" is the local-dev
+# default; restrict to the gateway origin(s) on any non-tailnet deployment.
+CORS_ALLOW_ORIGINS = [o.strip() for o in os.environ.get("CORS_ALLOW_ORIGINS", "*").split(",") if o.strip()] or ["*"]
+app.add_middleware(CORSMiddleware, allow_origins=CORS_ALLOW_ORIGINS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 
 @app.middleware("http")
@@ -81,6 +84,16 @@ class ConflictResolve(BaseModel):
     vector_clock: dict[str, int] = Field(default_factory=dict)
 
 
+class SyncHeartbeat(BaseModel):
+    device_key: str
+    platform: str = "web"
+    pending_mutations: int = Field(default=0, ge=0)
+    conflict_count: int = Field(default=0, ge=0)
+    foreground: bool = True
+    battery_hint: str | None = None
+    network_hint: str | None = None
+
+
 @app.on_event("startup")
 async def startup() -> None:
     global _pool
@@ -115,6 +128,58 @@ async def sync_health() -> dict[str, Any]:
         latest = await conn.fetchval("SELECT COALESCE(MAX(id),0) FROM sync_log")
         open_conflicts = await conn.fetchval("SELECT COUNT(*) FROM sync_conflicts WHERE status='open'")
     return {"status": "ok", "latest_sync_id": latest, "open_conflicts": open_conflicts}
+
+
+@app.post("/api/sync/heartbeat")
+async def sync_heartbeat(hb: SyncHeartbeat) -> dict[str, Any]:
+    """Record a per-device sync heartbeat (Phase E). Drives the Continuity
+    surface's "this device last synced / N queued" line — real state, no scores."""
+    p = await pool()
+    async with p.acquire() as conn:
+        device_id = await ensure_device(conn, hb.device_key)
+        fg = "now()" if hb.foreground else "last_foreground_sync_at"
+        bg = "last_background_sync_at" if hb.foreground else "now()"
+        row = await conn.fetchrow(
+            f"""
+            INSERT INTO client_sync_state(device_id, platform, last_foreground_sync_at, last_background_sync_at,
+                                          pending_mutations, conflict_count, battery_hint, network_hint, updated_at)
+            VALUES($1,$2,{"now()" if hb.foreground else "NULL"},{"NULL" if hb.foreground else "now()"},$3,$4,$5,$6,now())
+            ON CONFLICT(device_id, platform) DO UPDATE SET
+              last_foreground_sync_at={fg}, last_background_sync_at={bg},
+              pending_mutations=EXCLUDED.pending_mutations, conflict_count=EXCLUDED.conflict_count,
+              battery_hint=EXCLUDED.battery_hint, network_hint=EXCLUDED.network_hint, updated_at=now()
+            RETURNING id::text
+            """,
+            device_id, hb.platform, hb.pending_mutations, hb.conflict_count, hb.battery_hint, hb.network_hint,
+        )
+    return {"status": "recorded", "state_id": row["id"]}
+
+
+@app.get("/api/sync/devices")
+async def sync_devices() -> list[dict[str, Any]]:
+    """Per-device continuity view: last seen, lag, queue depth (Phase E)."""
+    p = await pool()
+    async with p.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT d.name, d.device_key, d.kind, c.platform,
+                   c.last_foreground_sync_at, c.last_background_sync_at,
+                   c.pending_mutations, c.conflict_count, c.battery_hint, c.network_hint, c.updated_at,
+                   GREATEST(COALESCE(c.last_foreground_sync_at, 'epoch'), COALESCE(c.last_background_sync_at, 'epoch')) AS last_sync_at
+            FROM client_sync_state c JOIN devices d ON d.id = c.device_id
+            ORDER BY c.updated_at DESC LIMIT 100
+            """
+        )
+    out = []
+    for r in rows:
+        item = dict(r)
+        last = r["last_sync_at"]
+        if last and last.year > 1970:
+            item["lag_seconds"] = max(0, int((datetime.now(timezone.utc) - last).total_seconds()))
+        else:
+            item["lag_seconds"] = None
+        out.append(item)
+    return out
 
 
 @app.post("/api/sync/push")
